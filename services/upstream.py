@@ -13,7 +13,9 @@ import json
 import logging
 import os
 import re
+import threading
 import time
+import urllib.request
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
@@ -34,6 +36,7 @@ from core.config import (
     SAFE_UPSTREAM_HEADERS,
     STREAM_TIMEOUT,
     TLS12_CIPHERS,
+    WARP_ROTATOR_URL,
 )
 from core.db import (
     acquire_flow_lease,
@@ -901,6 +904,42 @@ def apply_reasoning_effort(
     return payload
 
 
+_rotation_guard = threading.Lock()
+_last_rotation_at = 0.0
+ROTATION_COOLDOWN = float(os.environ.get("WARP_ROTATION_COOLDOWN", "10"))
+
+
+def request_warp_rotation(reason: str = "upstream 429") -> bool:
+    """Ask the local WARP rotator for a fresh egress IP (cooldown-guarded)."""
+    global _last_rotation_at
+    url = (WARP_ROTATOR_URL or "").strip()
+    if not url:
+        return False
+    endpoint = url.rstrip("/") + "/rotate"
+    with _rotation_guard:
+        now = time.time()
+        if now - _last_rotation_at < ROTATION_COOLDOWN:
+            return False
+        _last_rotation_at = now
+    try:
+        req = urllib.request.Request(endpoint, data=b"", method="POST")
+        with urllib.request.urlopen(req, timeout=240) as resp:
+            body = json.loads(resp.read().decode("utf-8") or "{}")
+            ok = resp.status == 200 and body.get("status") == "success"
+            if ok:
+                log.info(
+                    "Rotated WARP egress IP to %s (%s)",
+                    body.get("verified_ip"),
+                    reason,
+                )
+            else:
+                log.warning("WARP rotation did not succeed: %s", body)
+            return ok
+    except Exception as exc:
+        log.warning("WARP rotation request failed: %s", exc)
+        return False
+
+
 async def forward_upstream_request(
     endpoint: str,
     target_url: str,
@@ -908,6 +947,7 @@ async def forward_upstream_request(
     raw_request: Request,
     collector_func=collect_chat_completion,
     client_wants_stream: Optional[bool] = None,
+    allow_rotation: bool = True,
 ):
     start_time = time.time()
     metrics["total_requests"] += 1
@@ -978,6 +1018,18 @@ async def forward_upstream_request(
         metrics["rate_limited_requests"] += 1
         prom_requests_rate_limited.labels(model=model_name).inc()
         category, retry_seconds, err_payload = classify_upstream_429(response)
+        if allow_rotation and await asyncio.to_thread(
+            request_warp_rotation, f"upstream 429 ({category})"
+        ):
+            return await forward_upstream_request(
+                endpoint,
+                target_url,
+                payload,
+                raw_request,
+                collector_func,
+                client_wants_stream=client_wants_stream,
+                allow_rotation=False,
+            )
         resp_headers = {"X-Rate-Limit-Reason": category}
         if retry_seconds is not None:
             resp_headers["Retry-After"] = str(retry_seconds)
@@ -1020,6 +1072,20 @@ async def forward_upstream_request(
             if raw_text.startswith("{") and ("FreeUsageLimitError" in raw_text or "error" in raw_text):
                 session.close()
                 release_flow_lease(lease_id)
+                if (
+                    allow_rotation
+                    and ("FreeUsageLimitError" in raw_text or "RateLimitError" in raw_text)
+                    and await asyncio.to_thread(request_warp_rotation, "stream 429")
+                ):
+                    return await forward_upstream_request(
+                        endpoint,
+                        target_url,
+                        payload,
+                        raw_request,
+                        collector_func,
+                        client_wants_stream=client_wants_stream,
+                        allow_rotation=False,
+                    )
                 try:
                     err_json = json.loads(raw_text)
                     err_exc = error_to_exception(err_json)
@@ -1067,6 +1133,20 @@ async def forward_upstream_request(
         assembled = await asyncio.to_thread(collector_func, response, model_name)
     except UpstreamAPIError as exc:
         session.close()
+        if (
+            allow_rotation
+            and exc.kind in {"free_usage_limit", "rate_limit"}
+            and await asyncio.to_thread(request_warp_rotation, f"assembled {exc.kind}")
+        ):
+            return await forward_upstream_request(
+                endpoint,
+                target_url,
+                payload,
+                raw_request,
+                collector_func,
+                client_wants_stream=client_wants_stream,
+                allow_rotation=False,
+            )
         return upstream_error_response(exc)
     except Exception as exc:
         session.close()
