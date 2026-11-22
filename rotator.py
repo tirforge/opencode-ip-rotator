@@ -370,21 +370,22 @@ def rotate_warp(reason: str = "Triggered") -> bool:
                 for attempt in range(1, max_attempts + 1):
                     try:
                         log.info(f"WARP rotation attempt {attempt}/{max_attempts}...")
-                        subprocess.run([warp_bin, "--accept-tos", "disconnect"], capture_output=True, text=True, timeout=10, check=False)
+                        _run_warp("disconnect")
                         time.sleep(1)
 
-                        subprocess.run([warp_bin, "--accept-tos", "registration", "delete"], capture_output=True, text=True, timeout=10, check=False)
-                        for _ in range(10):
-                            time.sleep(0.3)
-                            chk = subprocess.run([warp_bin, "--accept-tos", "registration", "show"], capture_output=True, text=True, check=False)
-                            if "Missing registration" in chk.stderr or "Missing registration" in chk.stdout:
-                                break
-                        subprocess.run([warp_bin, "--accept-tos", "registration", "new"], capture_output=True, text=True, timeout=10, check=False)
-                        time.sleep(0.5)
+                        # Cloudflare reuses the same egress IP for an unchanged
+                        # identity/negotiation. Rotating keys and toggling the
+                        # tunnel protocol forces a fresh assignment.
+                        if "Missing registration" in _warp_status_text():
+                            _run_warp("registration", "new", timeout=20)
+                            time.sleep(0.5)
+                        _run_warp("tunnel", "rotate-keys")
+                        _run_warp("tunnel", "protocol", "set", "WireGuard")
+                        _run_warp("tunnel", "protocol", "reset")
                         _run_warp("mode", "proxy")
                         time.sleep(0.3)
 
-                        res = subprocess.run([warp_bin, "--accept-tos", "connect"], capture_output=True, text=True, timeout=10, check=False)
+                        res = _run_warp("connect")
 
                         if res.returncode == 0:
                             # The proxy listener may take a few seconds to come
