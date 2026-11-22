@@ -1030,23 +1030,22 @@ async def forward_upstream_request(
         prom_requests_rate_limited.labels(model=model_name).inc()
         category, retry_seconds, err_payload = classify_upstream_429(response)
         if allow_rotation:
+            # A WARP exit pool (warp-minimal) rotates its egress IP on 429,
+            # so the retry usually lands on a fresh quota.
             rotated = await asyncio.to_thread(
                 request_warp_rotation, f"upstream 429 ({category})"
             )
-            if rotated or category == "rate_limit":
-                # A fresh WARP IP fixes per-IP quotas; short rate limits often
-                # clear on their own, so retry once either way.
-                if not rotated:
-                    await asyncio.sleep(2)
-                return await forward_upstream_request(
-                    endpoint,
-                    target_url,
-                    payload,
-                    raw_request,
-                    collector_func,
-                    client_wants_stream=client_wants_stream,
-                    allow_rotation=False,
-                )
+            if not rotated:
+                await asyncio.sleep(2)
+            return await forward_upstream_request(
+                endpoint,
+                target_url,
+                payload,
+                raw_request,
+                collector_func,
+                client_wants_stream=client_wants_stream,
+                allow_rotation=False,
+            )
         resp_headers = {"X-Rate-Limit-Reason": category}
         if retry_seconds is not None:
             resp_headers["Retry-After"] = str(retry_seconds)
@@ -1096,9 +1095,11 @@ async def forward_upstream_request(
                     rotated = await asyncio.to_thread(
                         request_warp_rotation, "stream 429"
                     )
-                    if rotated or is_rate_limit:
-                        if not rotated:
-                            await asyncio.sleep(2)
+                    if allow_rotation:
+                        # warp-minimal rotates the exit on 429, so retry once
+                        # through the pool to pick up the fresh egress IP.
+                        await asyncio.to_thread(request_warp_rotation, "stream 429")
+                        await asyncio.sleep(2)
                         return await forward_upstream_request(
                             endpoint,
                             target_url,
@@ -1155,11 +1156,9 @@ async def forward_upstream_request(
         assembled = await asyncio.to_thread(collector_func, response, model_name)
     except UpstreamAPIError as exc:
         session.close()
-        if (
-            allow_rotation
-            and exc.kind in {"free_usage_limit", "rate_limit"}
-            and await asyncio.to_thread(request_warp_rotation, f"assembled {exc.kind}")
-        ):
+        if allow_rotation and exc.kind in {"free_usage_limit", "rate_limit"}:
+            await asyncio.to_thread(request_warp_rotation, f"assembled {exc.kind}")
+            await asyncio.sleep(2)
             return await forward_upstream_request(
                 endpoint,
                 target_url,
