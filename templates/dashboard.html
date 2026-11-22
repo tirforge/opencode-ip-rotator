@@ -1056,29 +1056,40 @@
     const innerW = Math.max(1, w - pad.l - pad.r);
     const innerH = Math.max(1, h - pad.t - pad.b);
     const values = series.map((p) => (mode === "tokens" ? p.tokens || 0 : p.total || 0));
-    const max = niceMax(Math.max(mode === "tokens" ? 20 : 2, ...values));
+    // Request counts are integers, so derive whole-number ticks; tokens can use
+    // a rounded 1/2/5 scale.
+    let max, ticks;
+    if (mode === "requests") {
+      const top = Math.max(2, ...values);
+      const stepT = Math.max(1, Math.ceil(top / 4));
+      max = Math.ceil(top / stepT) * stepT;
+      ticks = [];
+      for (let v = 0; v <= max; v += stepT) ticks.push(v);
+    } else {
+      max = niceMax(Math.max(20, ...values));
+      ticks = [0, max / 3, (2 * max) / 3, max];
+    }
 
     // grid + axis labels
     ctx.font = "9.5px " + getComputedStyle(document.body).fontFamily;
     ctx.textBaseline = "middle";
-    for (let i = 0; i <= 3; i++) {
-      const y = pad.t + (innerH / 3) * i;
+    ticks.slice().reverse().forEach((tick) => {
+      const y = pad.t + innerH * (1 - tick / max);
       ctx.strokeStyle = "rgba(255,255,255,.055)";
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
-      const label = max * (1 - i / 3);
-      ctx.fillStyle = "rgba(147,161,186,.7)";
+      ctx.fillStyle = "rgba(169,177,214,.65)";
       ctx.textAlign = "right";
       ctx.fillText(
-        max < 8
-          ? String(Math.round(label * 10) / 10)
-          : Math.round(label) >= 1000
-            ? (Math.round(label) / 1000).toFixed(1) + "k"
-            : String(Math.round(label)),
+        mode === "requests"
+          ? String(Math.round(tick))
+          : tick >= 1000
+            ? (tick / 1000).toFixed(1) + "k"
+            : String(Math.round(tick * 10) / 10),
         pad.l - 7,
         y
       );
-    }
+    });
 
     const step = innerW / Math.max(1, series.length - 1);
     const x = (i) => pad.l + i * step;
