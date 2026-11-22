@@ -23,8 +23,10 @@ case "$(uname -m)" in
 esac
 
 if [[ "$RELEASE" == "latest" ]]; then
-  RELEASE="$(curl -fsSL https://api.github.com/repos/prometheus/node_exporter/releases/latest \
-    | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+  # Read the release JSON in one go: piping curl into `grep -m1` makes curl
+  # fail with SIGPIPE (exit 23) under `set -o pipefail`.
+  RELEASE_BODY="$(curl -fsSL https://api.github.com/repos/prometheus/node_exporter/releases/latest)"
+  RELEASE="$(printf '%s' "$RELEASE_BODY" | grep -m1 '"tag_name"' | cut -d'"' -f4)"
 fi
 VERSION="${RELEASE#v}"
 NAME="node_exporter-${VERSION}.linux-${ARCH}"
@@ -51,5 +53,7 @@ systemctl --no-pager --lines=0 status node-exporter || true
 
 echo
 echo "node_exporter $(/usr/local/bin/node_exporter --version 2>&1 | head -1)"
-curl -fsS http://127.0.0.1:9100/metrics | head -3
+curl -fsS http://127.0.0.1:9100/metrics -o /tmp/node_exporter_metrics.txt
+sed -n '1,3p' /tmp/node_exporter_metrics.txt
+rm -f /tmp/node_exporter_metrics.txt
 echo "OK: metrics available on http://127.0.0.1:9100/metrics"
