@@ -108,19 +108,30 @@ async def rotate_ip(request: Request) -> Dict[str, Any]:
 
     exit_id: Optional[str] = payload.get("exit") if payload.get("exit") else None
     before = await asyncio.to_thread(warp_admin.snapshot)
+    old_ip = (before.get("ips") or [""])[0]
 
     ok, reason = await asyncio.to_thread(warp_admin.rotate_exit, exit_id)
     if not ok and reason in {"no_standby", "http_409", "http_404"}:
         ok, reason = await asyncio.to_thread(warp_admin.recycle_pool)
 
+    # Enrolment is asynchronous: poll until the new exit is serving, so the
+    # dashboard reports the IP the next request will actually use.
+    after = before
+    new_ip = old_ip
     if ok:
-        # Enrollment takes a couple of seconds; give the pool time to come back.
-        await asyncio.sleep(3)
+        deadline = time.time() + 20
+        while True:
+            after = await asyncio.to_thread(warp_admin.snapshot)
+            new_ip = (after.get("ips") or [""])[0]
+            healthy = int(after.get("healthy") or 0)
+            if new_ip and new_ip != old_ip and healthy > 0:
+                break
+            if time.time() >= deadline:
+                break
+            await asyncio.sleep(2)
 
-    after = await asyncio.to_thread(warp_admin.snapshot)
-    old_ip = (before.get("ips") or [""])[0]
-    new_ip = (after.get("ips") or [""])[0]
-    if ok:
+    changed = bool(ok and new_ip and new_ip != old_ip)
+    if changed:
         record_rotation(old_ip, new_ip, "dashboard")
 
     return {
@@ -128,7 +139,7 @@ async def rotate_ip(request: Request) -> Dict[str, Any]:
         "reason": reason,
         "old_ip": old_ip,
         "new_ip": new_ip,
-        "changed": bool(ok and old_ip != new_ip),
+        "changed": changed,
         "before": before,
         "after": after,
         "rotations": count_rotations(),
