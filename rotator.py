@@ -366,7 +366,7 @@ def rotate_warp(reason: str = "Triggered") -> bool:
             # Try local WARP CLI rotation first
             warp_bin = get_warp_bin()
             if shutil.which(warp_bin) or os.path.exists(warp_bin):
-                max_attempts = 4
+                max_attempts = 6
                 for attempt in range(1, max_attempts + 1):
                     try:
                         log.info(f"WARP rotation attempt {attempt}/{max_attempts}...")
@@ -390,7 +390,8 @@ def rotate_warp(reason: str = "Triggered") -> bool:
                         if res.returncode == 0:
                             # The proxy listener may take a few seconds to come
                             # back after re-registration.
-                            new_ip = get_warp_ip(retries=12, delay=1.0)
+                            time.sleep(2)
+                            new_ip = get_warp_ip(retries=20, delay=1.0)
 
                             if new_ip and new_ip != old_ip:
                                 _current_ip = new_ip
