@@ -1018,18 +1018,24 @@ async def forward_upstream_request(
         metrics["rate_limited_requests"] += 1
         prom_requests_rate_limited.labels(model=model_name).inc()
         category, retry_seconds, err_payload = classify_upstream_429(response)
-        if allow_rotation and await asyncio.to_thread(
-            request_warp_rotation, f"upstream 429 ({category})"
-        ):
-            return await forward_upstream_request(
-                endpoint,
-                target_url,
-                payload,
-                raw_request,
-                collector_func,
-                client_wants_stream=client_wants_stream,
-                allow_rotation=False,
+        if allow_rotation:
+            rotated = await asyncio.to_thread(
+                request_warp_rotation, f"upstream 429 ({category})"
             )
+            if rotated or category == "rate_limit":
+                # A fresh WARP IP fixes per-IP quotas; short rate limits often
+                # clear on their own, so retry once either way.
+                if not rotated:
+                    await asyncio.sleep(2)
+                return await forward_upstream_request(
+                    endpoint,
+                    target_url,
+                    payload,
+                    raw_request,
+                    collector_func,
+                    client_wants_stream=client_wants_stream,
+                    allow_rotation=False,
+                )
         resp_headers = {"X-Rate-Limit-Reason": category}
         if retry_seconds is not None:
             resp_headers["Retry-After"] = str(retry_seconds)
@@ -1072,20 +1078,25 @@ async def forward_upstream_request(
             if raw_text.startswith("{") and ("FreeUsageLimitError" in raw_text or "error" in raw_text):
                 session.close()
                 release_flow_lease(lease_id)
-                if (
-                    allow_rotation
-                    and ("FreeUsageLimitError" in raw_text or "RateLimitError" in raw_text)
-                    and await asyncio.to_thread(request_warp_rotation, "stream 429")
+                is_rate_limit = "RateLimitError" in raw_text
+                if allow_rotation and (
+                    "FreeUsageLimitError" in raw_text or is_rate_limit
                 ):
-                    return await forward_upstream_request(
-                        endpoint,
-                        target_url,
-                        payload,
-                        raw_request,
-                        collector_func,
-                        client_wants_stream=client_wants_stream,
-                        allow_rotation=False,
+                    rotated = await asyncio.to_thread(
+                        request_warp_rotation, "stream 429"
                     )
+                    if rotated or is_rate_limit:
+                        if not rotated:
+                            await asyncio.sleep(2)
+                        return await forward_upstream_request(
+                            endpoint,
+                            target_url,
+                            payload,
+                            raw_request,
+                            collector_func,
+                            client_wants_stream=client_wants_stream,
+                            allow_rotation=False,
+                        )
                 try:
                     err_json = json.loads(raw_text)
                     err_exc = error_to_exception(err_json)

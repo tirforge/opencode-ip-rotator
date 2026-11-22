@@ -70,10 +70,16 @@ def init_db() -> None:
             ip TEXT NOT NULL,
             country TEXT,
             city TEXT,
-            flag TEXT
+            flag TEXT,
+            reason TEXT
         )
         """
     )
+    # Older databases predate the "reason" column used by rotator.py.
+    try:
+        db_execute("ALTER TABLE ip_history ADD COLUMN reason TEXT")
+    except sqlite3.OperationalError:
+        pass
     db_execute(
         """
         CREATE TABLE IF NOT EXISTS model_usage (

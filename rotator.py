@@ -29,6 +29,8 @@ CUSTOM_OUTBOUND_PROXY = os.environ.get("CUSTOM_OUTBOUND_PROXY", "").strip()
 WARP_PROXY_URL = os.environ.get("WARP_PROXY_URL", "http://127.0.0.1:40000").strip()
 ROTATOR_HOST = os.environ.get("WARP_ROTATOR_HOST", "127.0.0.1")
 ROTATOR_PORT = int(os.environ.get("WARP_ROTATOR_PORT", "8001"))
+# How long a rotation waits for in-flight streams before giving up.
+LEASE_WAIT_SECONDS = float(os.environ.get("WARP_LEASE_WAIT", "20"))
 
 # Proxy Pool Configuration
 DEFAULT_DATA_DIR = Path("/app/data") if Path("/.dockerenv").exists() else Path(__file__).resolve().parent / "data"
@@ -343,8 +345,20 @@ def rotate_warp(reason: str = "Triggered") -> bool:
     with rotation_lock:
         with flow_lock:
             if active_flows_count > 0 or has_active_flow_leases():
-                log.info("IP rotation skipped — an active streaming flow lease is in progress.")
-                return False
+                log.info(
+                    "IP rotation deferred — waiting up to %.0fs for active flows to finish.",
+                    LEASE_WAIT_SECONDS,
+                )
+                deadline = time.time() + LEASE_WAIT_SECONDS
+                while time.time() < deadline:
+                    time.sleep(0.5)
+                    if active_flows_count == 0 and not has_active_flow_leases():
+                        break
+                else:
+                    log.info(
+                        "IP rotation skipped — an active streaming flow lease is still in progress."
+                    )
+                    return False
 
             old_ip = _current_ip or get_warp_ip() or get_public_ip()
             log.info(f"Initiating guaranteed IP rotation... (Reason: {reason} | Current IP: {old_ip})")
