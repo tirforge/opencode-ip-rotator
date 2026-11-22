@@ -61,8 +61,9 @@ class PasswordSessionTests(unittest.TestCase):
     def test_login_page_renders(self):
         resp = self.client.get("/login")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("Control room access", resp.text)
+        self.assertIn("Sign in", resp.text)
         self.assertIn('name="password"', resp.text)
+        self.assertIn("tirforge", resp.text)
 
     def test_root_redirects_to_login_when_signed_out(self):
         resp = self.client.get("/", follow_redirects=False)
@@ -86,6 +87,7 @@ class PasswordSessionTests(unittest.TestCase):
         dashboard = self.client.get("/")
         self.assertEqual(dashboard.status_code, 200)
         self.assertIn("Gateway overview", dashboard.text)
+        self.assertIn("tirforge", dashboard.text)
 
     def test_open_redirect_is_blocked(self):
         resp = self.client.post(

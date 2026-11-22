@@ -5,173 +5,147 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#05070d">
-<title>Sign in · OpenCode Control Room</title>
+<meta name="theme-color" content="#1a1b26">
+<title>Sign in · OpenCode Proxy</title>
 <style nonce="{{ nonce }}">
   :root{
-    --bg:#05070d;
-    --panel:rgba(17,24,39,.72);
-    --line:rgba(255,255,255,.09);
-    --text:#e9eefb;
-    --muted:#93a0b8;
-    --dim:#63718a;
-    --indigo:#7c8cff;
-    --cyan:#35e0f0;
-    --red:#fb7185;
-    --font:"Inter","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;
-    --mono:"JetBrains Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+    --bg:#1a1b26;
+    --bg-deep:#16161e;
+    --panel:#1f2335;
+    --panel-2:#242942;
+    --line:#2a2f45;
+    --line-2:#3b4261;
+    --text:#c0caf5;
+    --text-2:#a9b1d6;
+    --dim:#565f89;
+    --blue:#7aa2f7;
+    --green:#9ece6a;
+    --amber:#e0af68;
+    --red:#f7768e;
+    --font:"Inter","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono:"JetBrains Mono","Cascadia Mono",Consolas,ui-monospace,monospace;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
-    margin:0;font-family:var(--font);color:var(--text);
-    background:
-      radial-gradient(1200px 700px at 15% -10%,rgba(99,102,241,.28),transparent 60%),
-      radial-gradient(900px 600px at 95% 10%,rgba(34,211,238,.16),transparent 55%),
-      radial-gradient(800px 700px at 50% 120%,rgba(52,211,153,.10),transparent 60%),
-      var(--bg);
-    display:grid;place-items:center;padding:28px 20px;overflow:hidden;
+    margin:0;font-family:var(--font);color:var(--text);background:var(--bg);
+    display:grid;place-items:center;padding:28px 20px;
     -webkit-font-smoothing:antialiased;
   }
-  body::before{
-    content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
-    background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);
-    background-size:56px 56px;
-    mask-image:radial-gradient(ellipse 70% 60% at 50% 45%,#000 20%,transparent 78%);
-  }
-  .glow{position:fixed;inset:auto;width:520px;height:520px;border-radius:50%;filter:blur(120px);opacity:.35;pointer-events:none}
-  .glow.a{background:#4f46e5;top:-180px;left:-140px}
-  .glow.b{background:#06b6d4;bottom:-220px;right:-160px;opacity:.22}
+  .wrap{width:min(400px,100%)}
 
-  .wrap{position:relative;z-index:1;width:min(430px,100%);animation:rise .5s cubic-bezier(.2,.8,.2,1)}
-  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-
-  .brand{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:22px}
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:20px;padding:0 4px}
   .mark{
-    width:46px;height:46px;border-radius:14px;display:grid;place-items:center;flex:none;
-    background:linear-gradient(140deg,#7c8cff,#35e0f0);
-    box-shadow:0 18px 44px -18px rgba(99,102,241,.95);
+    width:38px;height:38px;border-radius:9px;display:grid;place-items:center;flex:none;
+    background:var(--panel);border:1px solid var(--line-2);color:var(--blue);
   }
-  .mark svg{width:25px;height:25px;color:#050810}
-  .brand strong{display:block;font-size:15px;letter-spacing:-.01em}
-  .brand span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .mark svg{width:19px;height:19px}
+  .brand strong{display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+  .brand span{display:block;font-size:11.5px;color:var(--dim);margin-top:2px}
+  .brand a{color:var(--dim)}
+  .brand a:hover{color:var(--text-2);text-decoration:none}
 
   .card{
-    position:relative;border:1px solid var(--line);border-radius:24px;padding:30px 28px 26px;
-    background:linear-gradient(165deg,rgba(24,33,54,.9),rgba(10,15,26,.92));
-    box-shadow:0 40px 100px -40px #000,inset 0 1px 0 rgba(255,255,255,.06);
-    backdrop-filter:blur(20px) saturate(130%);overflow:hidden;
+    border:1px solid var(--line);border-radius:12px;padding:26px 24px 22px;
+    background:var(--panel);
   }
-  .card::before{
-    content:"";position:absolute;inset:0;pointer-events:none;
-    background:radial-gradient(420px 180px at 50% -10%,rgba(124,140,255,.22),transparent 70%);
-  }
-  .lock{
-    width:52px;height:52px;border-radius:16px;display:grid;place-items:center;margin:0 auto 16px;
-    border:1px solid rgba(124,140,255,.35);background:rgba(124,140,255,.12);color:var(--indigo);
-  }
-  .lock svg{width:24px;height:24px}
-  h1{margin:0;font-size:22px;letter-spacing:-.03em;text-align:center;font-weight:720}
-  .sub{margin:7px 0 22px;text-align:center;color:var(--muted);font-size:13px;line-height:1.5}
-  .sub b{color:var(--text);font-weight:600}
+  h1{margin:0;font-size:19px;letter-spacing:-.02em;font-weight:650}
+  .sub{margin:6px 0 20px;color:var(--text-2);font-size:12.5px;line-height:1.55}
 
-  form{display:flex;flex-direction:column;gap:13px}
-  label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  form{display:flex;flex-direction:column;gap:12px}
+  label{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);font-weight:600}
   .field{position:relative;display:flex;align-items:center}
   .field input{
-    width:100%;padding:14px 46px 14px 44px;border-radius:13px;font:inherit;font-size:14px;
-    color:var(--text);background:rgba(0,0,0,.34);border:1px solid var(--line);outline:none;
-    font-family:var(--mono);letter-spacing:.01em;transition:border-color .15s,box-shadow .15s;
+    width:100%;padding:11px 42px 11px 38px;border-radius:8px;font:inherit;font-size:13px;
+    color:var(--text);background:var(--bg-deep);border:1px solid var(--line-2);outline:none;
+    font-family:var(--mono);transition:border-color .12s,box-shadow .12s;
   }
-  .field input::placeholder{color:var(--dim);font-family:var(--font);letter-spacing:0}
-  .field input:focus{border-color:rgba(124,140,255,.7);box-shadow:0 0 0 4px rgba(124,140,255,.14)}
-  .field .ico{position:absolute;left:14px;width:17px;height:17px;color:var(--dim);pointer-events:none}
+  .field input::placeholder{color:var(--dim);font-family:var(--font)}
+  .field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(122,162,247,.16)}
+  .field .ico{position:absolute;left:12px;width:15px;height:15px;color:var(--dim);pointer-events:none}
   .reveal{
-    position:absolute;right:8px;border:0;background:transparent;color:var(--dim);
-    width:34px;height:34px;border-radius:9px;display:grid;place-items:center;cursor:pointer;
+    position:absolute;right:6px;border:0;background:transparent;color:var(--dim);
+    width:30px;height:30px;border-radius:6px;display:grid;place-items:center;
   }
-  .reveal:hover{color:var(--text);background:rgba(255,255,255,.06)}
-  .reveal svg{width:17px;height:17px}
+  .reveal:hover{color:var(--text);background:#2a2f45}
+  .reveal svg{width:15px;height:15px}
 
   button.submit{
-    margin-top:4px;padding:13px 16px;border:0;border-radius:13px;font:inherit;font-size:14px;font-weight:750;
-    color:#050810;background:linear-gradient(135deg,#9aa6ff,#35e0f0);cursor:pointer;
-    box-shadow:0 18px 40px -18px rgba(53,224,240,.75);transition:transform .16s,filter .16s;
+    margin-top:2px;padding:11px 16px;border:1px solid var(--blue);border-radius:8px;
+    font:inherit;font-size:13px;font-weight:600;color:#16161e;background:var(--blue);
+    transition:filter .12s;
   }
-  button.submit:hover{transform:translateY(-1px);filter:brightness(1.06)}
-  button.submit:disabled{opacity:.55;cursor:not-allowed;transform:none}
+  button.submit:hover{filter:brightness(1.08)}
+  button.submit:disabled{opacity:.55;cursor:not-allowed}
 
   .alert{
-    display:flex;gap:9px;align-items:flex-start;padding:11px 13px;border-radius:12px;font-size:12.5px;line-height:1.45;
-    border:1px solid rgba(251,113,133,.35);background:rgba(251,113,133,.09);color:#fecdd3;margin-bottom:16px;
+    display:flex;gap:8px;align-items:flex-start;padding:9px 11px;border-radius:8px;
+    font-size:12px;line-height:1.45;margin-bottom:16px;
+    border:1px solid rgba(247,118,142,.32);background:rgba(247,118,142,.12);color:#ffb3c1;
   }
-  .alert svg{width:16px;height:16px;flex:none;margin-top:1px}
-  .alert.info{border-color:rgba(124,140,255,.35);background:rgba(124,140,255,.09);color:#dbe0ff}
+  .alert.info{border-color:rgba(122,162,247,.32);background:rgba(122,162,247,.12);color:#b8c8ff}
+  .alert svg{width:15px;height:15px;flex:none;margin-top:1px}
 
-  .meta{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:20px;color:var(--dim);font-size:11px;flex-wrap:wrap}
-  .meta span{display:inline-flex;align-items:center;gap:6px}
-  .meta svg{width:13px;height:13px}
-  .foot{margin-top:22px;text-align:center;color:var(--dim);font-size:11px}
+  .meta{display:flex;align-items:center;gap:14px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);color:var(--dim);font-size:11px;flex-wrap:wrap}
+  .meta span{display:inline-flex;align-items:center;gap:5px}
+  .meta svg{width:12px;height:12px}
   .mono{font-family:var(--mono)}
-  @media (max-width:480px){.card{padding:26px 20px 22px;border-radius:20px}}
-  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  .foot{margin-top:16px;text-align:center;color:var(--dim);font-size:11px}
+  .foot a{color:var(--text-2)}
+  @media (max-width:420px){.card{padding:22px 18px 18px}}
 </style>
 </head>
 <body>
-<div class="glow a"></div>
-<div class="glow b"></div>
 
 <div class="wrap">
   <div class="brand">
     <div class="mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5"/><path d="M12 12v10"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5"/><path d="M12 12v10"/></svg>
     </div>
     <div>
       <strong>OpenCode Proxy</strong>
-      <span>Oracle VPS · WARP rotating gateway</span>
+      <span>by <a href="https://github.com/tirforge" target="_blank" rel="noopener">tirforge</a></span>
     </div>
   </div>
 
   <div class="card">
-    <div class="lock" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15.6" r="1.3"/><path d="M12 16.9v1.6"/></svg>
-    </div>
-    <h1>Control room access</h1>
-    <p class="sub">Enter the dashboard password to open <b>live traffic</b>, <b>WARP exits</b> and <b>host health</b>.</p>
+    <h1>Sign in</h1>
+    <p class="sub">Dashboard access for the WARP gateway and live traffic.</p>
 
     {% if error %}
     <div class="alert" role="alert">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.4h.01"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.4h.01"/></svg>
       <span>{{ error }}</span>
     </div>
     {% elif not password_configured %}
     <div class="alert info" role="status">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg>
       <span>No password is set on the server. Set <span class="mono">DASHBOARD_PASSWORD</span> and restart the service.</span>
     </div>
     {% endif %}
 
     <form method="post" action="/login" autocomplete="on">
       <input type="hidden" name="next" value="{{ next }}">
-      <label for="password">Dashboard password</label>
+      <label for="password">Password</label>
       <div class="field">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
-        <input id="password" name="password" type="password" placeholder="••••••••••••" autocomplete="current-password" required autofocus aria-describedby="pwHelp">
+        <input id="password" name="password" type="password" placeholder="Enter dashboard password" autocomplete="current-password" required autofocus>
         <button class="reveal" type="button" id="reveal" aria-label="Show password" aria-pressed="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
       <button class="submit" type="submit" id="submitBtn" {% if locked_for %}disabled{% endif %}>
-        {% if locked_for %}Locked · retry in {{ locked_for }}s{% else %}Unlock dashboard{% endif %}
+        {% if locked_for %}Try again in {{ locked_for }}s{% else %}Continue{% endif %}
       </button>
     </form>
 
     <div class="meta">
-      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/></svg>Argon2id + signed session</span>
-      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>12 h session</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>Argon2id</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>12 h session</span>
     </div>
-    <p class="foot">Protected endpoint · all traffic logged and rate limited</p>
   </div>
+
+  <p class="foot">IP rotation by <span class="mono">warp-minimal</span> · host metrics by <span class="mono">node_exporter</span></p>
 </div>
 
 <script nonce="{{ nonce }}">
@@ -196,8 +170,8 @@
     let left = locked;
     const tick = setInterval(() => {
       left -= 1;
-      if (left <= 0) { clearInterval(tick); submit.disabled = false; submit.textContent = "Unlock dashboard"; }
-      else submit.textContent = "Locked · retry in " + left + "s";
+      if (left <= 0) { clearInterval(tick); submit.disabled = false; submit.textContent = "Continue"; }
+      else submit.textContent = "Try again in " + left + "s";
     }, 1000);
   }
 })();
