@@ -7,6 +7,8 @@
 
 A modular, lightweight proxy server for OpenCode's free inference tier. It handles upstream protocol requirements, TLS cipher matching, model auto-discovery, SSE streaming, and outbound IP rotation.
 
+Fork maintained by [@tirforge](https://github.com/tirforge). The web dashboard uses a [Tokyo Night](https://github.com/folke/tokyonight.nvim) palette in a flat, shadcn-style layout.
+
 ![OpenCode IP Rotator Dashboard Preview](docs/dashboard_preview.jpg)
 
 ---

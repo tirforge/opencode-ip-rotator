@@ -776,7 +776,7 @@
 
     setText("kRequests", num(totals.requests));
     setText("kRequestsSub", `${num(totals.successful)} ok · ${num(totals.failed)} failed`);
-    setText("kSuccess", pct(totals.success_rate));
+    setText("kSuccess", totals.requests ? pct(totals.success_rate) : "—");
     setText("kSuccessSub", `${num(totals.rate_limited)} rate limited`);
     setText("kTps", tokens.avg_tps ? tokens.avg_tps.toFixed(1) : "—");
     setText("kTpsSub", `${num(hour.tokens_out || 0)} tokens · 60m`);
