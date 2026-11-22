@@ -930,19 +930,29 @@ async def forward_upstream_request(
     acquire_flow_lease(lease_id)
 
     def _execute_post():
-        sess = create_upstream_session(proxies=proxies)
-        try:
-            resp = sess.post(
-                target_url,
-                json=payload,
-                headers=headers,
-                stream=True,
-                timeout=STREAM_TIMEOUT,
-            )
-            return resp, sess
-        except Exception:
-            sess.close()
-            raise
+        # WARP's local proxy can briefly abort a CONNECT while reconnecting;
+        # retry through the proxy instead of failing the client request.
+        attempts = 3 if proxies else 1
+        last_exc: Optional[Exception] = None
+        for attempt in range(attempts):
+            sess = create_upstream_session(proxies=proxies)
+            try:
+                resp = sess.post(
+                    target_url,
+                    json=payload,
+                    headers=headers,
+                    stream=True,
+                    timeout=STREAM_TIMEOUT,
+                )
+                return resp, sess
+            except Exception as exc:
+                sess.close()
+                last_exc = exc
+                if attempt + 1 < attempts and "proxy" in str(exc).lower():
+                    time.sleep(1.0)
+                    continue
+                raise
+        raise last_exc  # pragma: no cover - loop always returns or raises
 
     try:
         response, session = await asyncio.to_thread(_execute_post)
