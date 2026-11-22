@@ -1328,6 +1328,7 @@ async def forward_upstream_request(
                 if event_id:
                     finish_event(
                         event_id,
+                        model=model_name,
                         duration_ms=round(elapsed * 1000, 1),
                         tokens_in=tokens_in,
                         tokens_out=tokens_out,
@@ -1389,6 +1390,7 @@ async def forward_upstream_request(
     if event_id:
         finish_event(
             event_id,
+            model=model_name,
             duration_ms=round(duration * 1000, 1),
             tokens_in=prompt_tokens,
             tokens_out=completion_tokens,

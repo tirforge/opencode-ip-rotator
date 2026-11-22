@@ -14,7 +14,8 @@ ExecStart=/usr/local/bin/node_exporter \
 Restart=on-failure
 RestartSec=5
 
-# Hardening: the exporter only needs to read /proc and /sys.
+# Hardening: the exporter only needs to read /proc and /sys. AF_NETLINK is
+# required by the netdev/arp collectors.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -22,7 +23,7 @@ PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 RestrictNamespaces=true
 LockPersonality=true
 MemoryMax=96M
