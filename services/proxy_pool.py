@@ -5,7 +5,7 @@ import socket
 import threading
 from typing import Dict, List, Optional
 
-from core.config import PROXY_LIST_FILE
+from core.config import IS_VERCEL, PROXY_LIST_FILE
 
 log = logging.getLogger("services.proxy_pool")
 _proxy_pool: List[str] = []
@@ -70,7 +70,7 @@ def get_next_outbound_proxy() -> Optional[Dict[str, str]]:
     if custom_proxy:
         return {"http": custom_proxy, "https": custom_proxy}
 
-    if not Path("/.dockerenv").exists():
+    if not IS_VERCEL and not Path("/.dockerenv").exists():
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(0.3)

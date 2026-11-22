@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import threading
+import time
 from typing import Any, Dict, List, Optional
 from urllib.request import Request as UrlRequest, urlopen
 
@@ -30,6 +31,9 @@ CATALOG_HEADERS = {
 _discovered_models: List[Dict[str, Any]] = []
 _discovery_lock = threading.Lock()
 _stop_event = threading.Event()
+_last_refresh_attempt = 0.0
+_refresh_guard = threading.Lock()
+FAILED_REFRESH_BACKOFF = 30.0
 
 
 def _zero_price(value: Any) -> bool:
@@ -107,7 +111,8 @@ def get_default_model() -> str:
 
 
 def refresh_models_once() -> bool:
-    global _discovered_models
+    global _discovered_models, _last_refresh_attempt
+    _last_refresh_attempt = time.time()
     try:
         new_models = fetch_free_models(MODELS_URL, timeout=10)
     except Exception as exc:
@@ -137,6 +142,30 @@ def discovery_worker() -> None:
     while not _stop_event.is_set():
         refresh_models_once()
         _stop_event.wait(MODEL_DISCOVERY_INTERVAL)
+
+
+def ensure_models_fresh() -> bool:
+    """Refresh the catalog when the in-memory copy is stale.
+
+    On Vercel every cold instance starts empty and there is no background
+    thread, so this is what keeps ``/v1/models`` and the default-model fallback
+    accurate. Failures back off briefly instead of hammering upstream.
+    """
+    now = time.time()
+    if _discovered_models and now - _last_refresh_attempt < MODEL_DISCOVERY_INTERVAL:
+        return True
+    if not _discovered_models and now - _last_refresh_attempt < FAILED_REFRESH_BACKOFF:
+        return False
+
+    # One refresh at a time per instance.
+    if not _refresh_guard.acquire(blocking=False):
+        return bool(_discovered_models)
+    try:
+        if _discovered_models and time.time() - _last_refresh_attempt < MODEL_DISCOVERY_INTERVAL:
+            return True
+        return refresh_models_once()
+    finally:
+        _refresh_guard.release()
 
 
 def start_discovery() -> None:

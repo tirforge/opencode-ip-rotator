@@ -4,13 +4,21 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
-from core.config import CORS_ALLOW_ORIGINS
+from core.auth import ApiKeyMiddleware
+from core.config import (
+    CORS_ALLOW_ORIGINS,
+    IS_VERCEL,
+    PROXY_IP_ALLOWLIST,
+    PROXY_RATE_LIMIT,
+    PROXY_RATE_WINDOW,
+)
 from core.db import init_db
 from routes.chat import router as chat_router
 from routes.models import router as models_router
 from routes.system import router as system_router
-from services.discovery import start_discovery, stop_discovery
+from services.discovery import refresh_models_once, start_discovery, stop_discovery
 from services.proxy_pool import load_proxy_list
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -25,28 +33,55 @@ log = logging.getLogger("server")
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    init_db()
+    try:
+        init_db()
+    except Exception as exc:  # noqa: BLE001 - metrics must not block serving
+        log.warning("Metrics database unavailable, continuing without it: %s", exc)
     load_proxy_list()
-    start_discovery()
-    log.info("OpenCode IP Rotator Server started.")
+
+    if IS_VERCEL:
+        # Serverless: no long-lived background thread. The catalog is fetched
+        # once per instance at startup; `/v1/models` is served from memory.
+        log.info("Running on Vercel; fetching model catalog once.")
+        refresh_models_once()
+    else:
+        start_discovery()
+    log.info("OpenCode proxy server started.")
+
     yield
-    stop_discovery()
-    log.info("OpenCode IP Rotator Server stopped.")
+
+    if not IS_VERCEL:
+        stop_discovery()
+    log.info("OpenCode proxy server stopped.")
 
 
-app = FastAPI(title="OpenCode IP Rotator", lifespan=lifespan)
+app = FastAPI(title="OpenCode Vercel Proxy", lifespan=lifespan)
+
+if CORS_ALLOW_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ALLOW_ORIGINS,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "x-api-key", "anthropic-version"],
+    )
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ALLOW_ORIGINS,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    ApiKeyMiddleware,
+    limit=PROXY_RATE_LIMIT,
+    window=PROXY_RATE_WINDOW,
+    allowlist=PROXY_IP_ALLOWLIST,
 )
 
 app.include_router(chat_router)
 app.include_router(models_router)
 app.include_router(system_router)
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/dashboard")
+
 
 if __name__ == "__main__":
     import uvicorn

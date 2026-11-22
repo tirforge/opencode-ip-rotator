@@ -83,6 +83,79 @@ opencode-ip-rotator/
 
 ---
 
+## Deploy on Vercel (Hobby plan)
+
+> **Read this first.** Vercel Functions are serverless: no Docker, no `warp-cli`,
+> no long-running process and no persistent disk. **Cloudflare WARP IP rotation
+> cannot run on Vercel.** What *does* run is the proxy itself (protocol headers,
+> TLS impersonation, SSE streaming, model discovery) plus proxy-pool rotation
+> through `PROXY_LIST`. Metrics live in `/tmp` per instance and the dashboard is
+> per-instance/best-effort. If you need real WARP IP rotation, use the Docker
+> compose setup above on a VPS.
+>
+> Vercel egress IPs are shared AWS addresses, so OpenCode Zen may rate-limit
+> (HTTP 429) more often than a residential/WARP IP. This fork does not hide that.
+
+### 1. Import the repository
+
+Fork/clone is already public at `tirforge/opencode-ip-rotator`. In Vercel:
+
+1. **Add New → Project → Import Git Repository** and pick the fork.
+2. Framework preset: **FastAPI** (auto-detected from `server.py` + `requirements.txt`).
+3. Root directory: repository root. Build settings can stay empty.
+
+### 2. Set the API key (required)
+
+In **Project → Settings → Environment Variables**, add:
+
+| Name | Value |
+| --- | --- |
+| `PROXY_API_KEY` | a long random secret, e.g. `openssl rand -hex 32` |
+
+Without `PROXY_API_KEY`, the Vercel deployment **fails closed** and returns
+`503` for every proxy route. Multiple clients can share multiple keys by
+comma-separating them: `key-one,key-two`.
+
+Optional hardening variables:
+
+| Name | Default | Purpose |
+| --- | --- | --- |
+| `PROXY_RATE_LIMIT` | `60` | Requests per key + IP per window |
+| `PROXY_RATE_WINDOW` | `60` | Window length in seconds |
+| `PROXY_IP_ALLOWLIST` | empty | Comma-separated client IPs allowed to connect |
+| `PROXY_LIST` | empty | Round-robin outbound proxies (`http://user:pass@host:port,...`) |
+| `CORS_ALLOW_ORIGINS` | empty | Only needed for browser clients |
+
+### 3. Deploy and verify
+
+```bash
+# Unauthenticated -> 401
+curl -i https://<your-app>.vercel.app/v1/models
+
+# Authenticated -> model list
+curl https://<your-app>.vercel.app/v1/models \
+  -H "Authorization: Bearer $PROXY_API_KEY"
+
+# Streaming chat completion
+curl -N https://<your-app>.vercel.app/v1/chat/completions \
+  -H "Authorization: Bearer $PROXY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"big-pickle","stream":true,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+Dashboard: open `https://<your-app>.vercel.app/dashboard?key=<PROXY_API_KEY>`.
+The key is exchanged for an HttpOnly cookie and removed from the URL.
+
+### Vercel limits that matter
+
+- **Max duration:** 300s on Hobby (Fluid compute). `STREAM_TIMEOUT` defaults to 120s.
+- **Request body:** 4.5 MB.
+- **Filesystem:** read-only except `/tmp` (ephemeral, per instance).
+- **State:** in-memory metrics are per instance, so counters reset on cold starts.
+- **Rotation:** only `PROXY_LIST` / `CUSTOM_OUTBOUND_PROXY`, never WARP.
+
+---
+
 ## Client Configuration
 
 ### OpenCode (`~/.config/opencode/opencode.jsonc`)
@@ -99,7 +172,8 @@ Add the local proxy using the current OpenCode provider schema:
       "name": "OpenCode IP Rotator",
       "package": "@opencode/ai/providers/openai-compatible",
       "settings": {
-        "baseURL": "http://127.0.0.1:8000/v1"
+        "baseURL": "https://<your-app>.vercel.app/v1",
+        "apiKey": "<PROXY_API_KEY>"
       },
       "models": {
         "big-pickle": {
@@ -169,14 +243,14 @@ Requests rotate across the pool in round-robin order.
 
 ## Endpoints
 
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/v1/chat/completions` | `POST` | OpenAI-compatible chat completion (streaming and non-streaming) |
-| `/v1/messages` | `POST` | Anthropic-compatible chat completion |
-| `/v1/models` | `GET` | Currently active free models with their full OpenCode catalog metadata |
-| `/dashboard` | `GET` | Web management dashboard |
-| `/metrics` | `GET` | Public IP, token metrics, and operational stats (JSON) |
-| `/health` | `GET` | Health check probe |
+| Endpoint | Method | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `/v1/chat/completions` | `POST` | key | OpenAI-compatible chat completion (streaming and non-streaming) |
+| `/v1/messages` | `POST` | key | Anthropic-compatible chat completion |
+| `/v1/models` | `GET` | key | Currently active free models with their full OpenCode catalog metadata |
+| `/dashboard` | `GET` | key | Web management dashboard (`?key=<PROXY_API_KEY>`) |
+| `/metrics` | `GET` | key | Public IP, token metrics, and operational stats (JSON or Prometheus) |
+| `/health` | `GET` | public | Health check probe |
 
 ---
 
@@ -184,13 +258,18 @@ Requests rotate across the pool in round-robin order.
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
+| `PROXY_API_KEY` | `""` | **Required on Vercel.** One key or comma-separated keys. Service fails closed when missing. |
+| `PROXY_RATE_LIMIT` | `60` | Requests allowed per key + IP per window |
+| `PROXY_RATE_WINDOW` | `60` | Rate-limit window in seconds |
+| `PROXY_IP_ALLOWLIST` | `""` | Comma-separated client IP allowlist |
 | `PORT` | `8000` | Port for the proxy server |
 | `DEFAULT_MODEL` | `big-pickle` | Fallback model if omitted by the client |
 | `MODEL_DISCOVERY_INTERVAL` | `300` | Interval in seconds to refresh free models |
 | `STREAM_TIMEOUT` | `120` | Maximum timeout for upstream streaming requests |
 | `PROXY_LIST_FILE` | `data/proxies.txt` | Path to custom proxy pool file |
 | `CUSTOM_OUTBOUND_PROXY` | `""` | Single static outbound proxy URL |
-| `WARP_ROTATOR_URL` | `http://warp-rotator:8001` | Internal URL for the WARP rotator service |
+| `CORS_ALLOW_ORIGINS` | `""` | Comma-separated browser origins allowed to call the API |
+| `WARP_ROTATOR_URL` | `http://warp-rotator:8001` | Internal URL for the WARP rotator service (Docker only) |
 
 ---
 

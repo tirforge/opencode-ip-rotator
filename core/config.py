@@ -25,9 +25,14 @@ TLS12_CIPHERS = (
 )
 
 # Operational settings
+# Vercel Functions have a read-only deployment filesystem; only /tmp is writable
+# and it is ephemeral (per instance, wiped on cold start).
+IS_VERCEL = bool(os.environ.get("VERCEL"))
 DEFAULT_DATA_DIR = (
     Path("/app/data")
     if Path("/.dockerenv").exists()
+    else Path("/tmp/opencode-proxy")
+    if IS_VERCEL
     else Path(__file__).resolve().parent.parent / "data"
 )
 DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "big-pickle")
@@ -43,8 +48,17 @@ PROXY_LIST_FILE = Path(
 )
 CORS_ALLOW_ORIGINS = [
     origin.strip()
-    for origin in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",")
+    for origin in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",")
     if origin.strip()
+]
+
+# Security / abuse protection
+PROXY_RATE_LIMIT = int(os.environ.get("PROXY_RATE_LIMIT", "60"))
+PROXY_RATE_WINDOW = int(os.environ.get("PROXY_RATE_WINDOW", "60"))
+PROXY_IP_ALLOWLIST = [
+    entry.strip()
+    for entry in os.environ.get("PROXY_IP_ALLOWLIST", "").split(",")
+    if entry.strip()
 ]
 
 # Safe headers for upstream logging

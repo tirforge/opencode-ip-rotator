@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f4f5f2">
-    <title>OpenCode IP Rotator</title>
+    <title>OpenCode Vercel Proxy</title>
     <style>
         :root {
             color-scheme: light;
@@ -83,14 +83,14 @@
 <body>
     <header>
         <div class="shell topbar">
-            <p class="brand">OpenCode IP Rotator</p>
+            <p class="brand">OpenCode Vercel Proxy</p>
         </div>
     </header>
 
     <main class="shell">
         <div class="intro">
             <h1>Network overview</h1>
-            <p>Current traffic and IP rotation activity.</p>
+            <p>Current proxy traffic and free model availability.</p>
         </div>
 
         <section class="overview" aria-label="Current network metrics">
@@ -105,9 +105,9 @@
                 <p class="detail">Since service start</p>
             </div>
             <div class="overview-item">
-                <p class="label">WARP rotations</p>
+                <p class="label">Free models</p>
                 <p id="rotations" class="value">—</p>
-                <p class="detail">Since rotator start</p>
+                <p class="detail">Discovered upstream</p>
             </div>
             <div class="overview-item">
                 <p class="label">429 responses</p>
@@ -135,11 +135,11 @@
 
             <section class="panel" aria-labelledby="history-heading">
                 <div class="panel-heading">
-                    <h2 id="history-heading">Recent IP changes</h2>
-                    <span class="panel-note">Latest 10</span>
+                    <h2 id="history-heading">Available free models</h2>
+                    <span class="panel-note">Live catalog</span>
                 </div>
                 <ul id="ip-history" class="history"></ul>
-                <p id="history-empty" class="empty">No IP changes recorded yet.</p>
+                <p id="history-empty" class="empty">No models discovered yet.</p>
             </section>
         </div>
 
@@ -184,24 +184,26 @@
             }
         }
 
-        function renderHistory(entries) {
+        function renderModels(models) {
             historyList.replaceChildren();
-            const history = Array.isArray(entries) ? entries : [];
-            document.getElementById("history-empty").hidden = history.length !== 0;
+            const available = Array.isArray(models) ? models : [];
+            document.getElementById("history-empty").hidden = available.length !== 0;
 
-            for (const entry of history) {
+            for (const model of available) {
                 const item = document.createElement("li");
                 item.className = "history-item";
-                const ip = document.createElement("span");
-                ip.className = "history-ip";
-                ip.textContent = entry.ip || "IP unavailable";
-                const place = document.createElement("span");
-                place.className = "history-place";
-                place.textContent = [entry.flag, entry.country].filter(Boolean).join(" ") || "Location unavailable";
-                const time = document.createElement("time");
-                time.className = "history-time";
-                time.textContent = entry.timestamp || "Time unavailable";
-                item.append(ip, place, time);
+                const name = document.createElement("span");
+                name.className = "history-ip";
+                name.textContent = model.id || "unknown";
+                const owner = document.createElement("span");
+                owner.className = "history-place";
+                owner.textContent = model.name || model.owned_by || "";
+                const limit = document.createElement("time");
+                limit.className = "history-time";
+                limit.textContent = model.limit && model.limit.context
+                    ? `${numberFormat.format(model.limit.context)} ctx`
+                    : "";
+                item.append(name, owner, limit);
                 historyList.append(item);
             }
         }
@@ -216,14 +218,18 @@
                 const location = data.location || {};
                 setText("location", [location.country, location.city].filter(Boolean).join(" · ") || "Location unavailable");
                 setText("requests", formatCount(data.total_requests));
-                setText("rotations", formatCount(data.rotation_count));
+                setText("rotations", formatCount(data.active_models_count));
                 setText("ratelimits", formatCount(data.rate_limited_requests));
                 renderUsage(data.model_usage);
-                renderHistory(data.recent_ips);
+                renderModels(data.models);
 
-                const rotatorOnline = data.rotator_status === "online";
                 message.dataset.state = "";
-                setText("dashboard-message", rotatorOnline ? "Metrics update automatically." : "WARP rotation data is unavailable; other metrics are current.");
+                setText(
+                    "dashboard-message",
+                    data.serverless
+                        ? "Running on Vercel serverless. Cloudflare WARP rotation is unavailable; configure PROXY_LIST for proxy-based rotation."
+                        : "Metrics update automatically.",
+                );
             } catch {
                 setText("ip", "Unavailable");
                 setText("location", "Location unavailable");

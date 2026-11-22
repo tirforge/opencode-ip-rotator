@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "server.py": {
+      "maxDuration": 300,
+      "memory": 1024,
+      "excludeFiles": "{tests/**,test.py,rotator.py,Dockerfile.*,docker-compose.yml,docs/**,.github/**,data/**,**/*.md,**/__pycache__/**,.venv/**}"
+    }
+  }
+}
