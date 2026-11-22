@@ -7,7 +7,8 @@ dashboard.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+import time
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -96,3 +97,28 @@ def rotate_exit(exit_id: Optional[str] = None) -> Tuple[bool, str]:
 def recycle_pool() -> Tuple[bool, str]:
     status, _ = _request("/recycle", method="POST", body={}, timeout=12.0)
     return status in (200, 202), f"http_{status}"
+
+
+def wait_for_new_egress(
+    old_ips: Set[str], timeout: float = 15.0, interval: float = 0.75
+) -> Dict[str, Any]:
+    """Poll until the pool serves from an IP that is not in ``old_ips``.
+
+    Enrolment is asynchronous: right after a swap the drained exit may still be
+    listed first and the replacement may still be starting. Retrying a request
+    before the pool is ready would land on the same limited exit.
+    """
+    deadline = time.time() + max(0.0, timeout)
+    snapshot_now = snapshot()
+    while time.time() < deadline:
+        serving = ""
+        for exit_info in snapshot_now.get("exits") or []:
+            if exit_info.get("state") in ("healthy", "in_use") and exit_info.get("ip"):
+                serving = str(exit_info["ip"])
+                break
+        healthy = int(snapshot_now.get("healthy") or 0)
+        if healthy > 0 and serving and serving not in old_ips:
+            return snapshot_now
+        time.sleep(interval)
+        snapshot_now = snapshot()
+    return snapshot_now

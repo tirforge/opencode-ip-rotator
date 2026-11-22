@@ -64,6 +64,14 @@ class WarpRotationRequestTests(unittest.TestCase):
     def test_warp_minimal_swap_is_used(self):
         with (
             patch.object(upstream, "WARP_ADMIN_URL", "http://127.0.0.1:8789"),
+            patch.object(
+                upstream.warp_admin, "snapshot", return_value={"ips": ["old-ip"]}
+            ),
+            patch.object(
+                upstream.warp_admin,
+                "wait_for_new_egress",
+                return_value={"exits": [{"state": "healthy", "ip": "new-ip"}]},
+            ),
             patch.object(upstream.warp_admin, "rotate_exit", return_value=(True, "swap")) as swap,
             patch.object(upstream, "record_rotation") as record,
             patch.object(upstream, "WARP_ROTATOR_URL", ""),
@@ -75,6 +83,14 @@ class WarpRotationRequestTests(unittest.TestCase):
     def test_warp_minimal_falls_back_to_recycle(self):
         with (
             patch.object(upstream, "WARP_ADMIN_URL", "http://127.0.0.1:8789"),
+            patch.object(
+                upstream.warp_admin, "snapshot", return_value={"ips": ["old-ip"]}
+            ),
+            patch.object(
+                upstream.warp_admin,
+                "wait_for_new_egress",
+                return_value={"exits": [{"state": "healthy", "ip": "new-ip"}]},
+            ),
             patch.object(upstream.warp_admin, "rotate_exit", return_value=(False, "no_standby")),
             patch.object(upstream.warp_admin, "recycle_pool", return_value=(True, "http_200")) as recycle,
             patch.object(upstream, "record_rotation"),
@@ -86,6 +102,9 @@ class WarpRotationRequestTests(unittest.TestCase):
     def test_warp_minimal_failure_falls_through(self):
         with (
             patch.object(upstream, "WARP_ADMIN_URL", "http://127.0.0.1:8789"),
+            patch.object(
+                upstream.warp_admin, "snapshot", return_value={"ips": ["old-ip"]}
+            ),
             patch.object(upstream.warp_admin, "rotate_exit", return_value=(False, "http_500")),
             patch.object(upstream, "WARP_ROTATOR_URL", ""),
         ):

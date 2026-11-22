@@ -909,9 +909,9 @@ def apply_reasoning_effort(
 
 _rotation_guard = threading.Lock()
 _last_rotation_at = 0.0
-ROTATION_COOLDOWN = float(os.environ.get("WARP_ROTATION_COOLDOWN", "10"))
-# warp-minimal needs a moment to enrol a fresh exit before it can serve.
-ROTATION_SETTLE_SECONDS = float(os.environ.get("WARP_ROTATION_SETTLE", "2.5"))
+ROTATION_COOLDOWN = float(os.environ.get("WARP_ROTATION_COOLDOWN", "3"))
+# How long to wait for a freshly enrolled exit to become the serving one.
+ROTATION_SETTLE_SECONDS = float(os.environ.get("WARP_ROTATION_SETTLE", "15"))
 
 
 def request_warp_rotation(reason: str = "upstream 429") -> bool:
@@ -935,14 +935,34 @@ def request_warp_rotation(reason: str = "upstream 429") -> bool:
         return True
 
     if (WARP_ADMIN_URL or "").strip():
+        before = warp_admin.snapshot()
+        old_ips = {ip for ip in (before.get("ips") or []) if ip}
         ok, detail = warp_admin.rotate_exit()
         if not ok and detail == "no_standby":
             ok, detail = warp_admin.recycle_pool()
         if ok:
-            record_rotation(reason=f"auto: {reason} ({detail})")
-            log.info("Rotated warp-minimal exit (%s, %s)", detail, reason)
-            if ROTATION_SETTLE_SECONDS > 0:
-                time.sleep(ROTATION_SETTLE_SECONDS)
+            after = warp_admin.wait_for_new_egress(
+                old_ips, timeout=max(0.0, ROTATION_SETTLE_SECONDS)
+            )
+            new_ip = next(
+                (
+                    str(exit_info["ip"])
+                    for exit_info in (after.get("exits") or [])
+                    if exit_info.get("state") in ("healthy", "in_use")
+                    and exit_info.get("ip")
+                ),
+                "",
+            )
+            old_ip = next(iter(old_ips)) if len(old_ips) == 1 else ""
+            if new_ip and new_ip not in old_ips:
+                record_rotation(old_ip, new_ip, f"auto: {reason} ({detail})")
+            log.info(
+                "Rotated warp-minimal exit (%s, %s): %s -> %s",
+                detail,
+                reason,
+                old_ip or "pool",
+                new_ip or "enrolling",
+            )
             return True
         log.warning("warp-minimal rotation failed (%s, %s)", detail, reason)
 
@@ -1113,20 +1133,17 @@ async def forward_upstream_request(
                     rotated = await asyncio.to_thread(
                         request_warp_rotation, "stream 429"
                     )
-                    if allow_rotation:
-                        # warp-minimal rotates the exit on 429, so retry once
-                        # through the pool to pick up the fresh egress IP.
-                        await asyncio.to_thread(request_warp_rotation, "stream 429")
+                    if not rotated:
                         await asyncio.sleep(2)
-                        return await forward_upstream_request(
-                            endpoint,
-                            target_url,
-                            payload,
-                            raw_request,
-                            collector_func,
-                            client_wants_stream=client_wants_stream,
-                            allow_rotation=False,
-                        )
+                    return await forward_upstream_request(
+                        endpoint,
+                        target_url,
+                        payload,
+                        raw_request,
+                        collector_func,
+                        client_wants_stream=client_wants_stream,
+                        allow_rotation=False,
+                    )
                 try:
                     err_json = json.loads(raw_text)
                     err_exc = error_to_exception(err_json)
