@@ -34,6 +34,7 @@
   html{scroll-behavior:smooth}
   html,body{margin:0;min-height:100%}
   body{
+    overflow-x:hidden;
     font-family:var(--font);color:var(--text);
     background:
       radial-gradient(1100px 620px at 8% -12%,rgba(99,102,241,.20),transparent 60%),
@@ -179,6 +180,11 @@
   .card-head .spacer{flex:1}
   .card-body{padding:15px 17px}
   .card-body.tight{padding:6px 17px 12px}
+  /* The request feed fills whatever height its column has, so a quiet hour
+     doesn't leave a hole under the traffic chart. */
+  .card.grow{flex:1}
+  .card.grow .card-body{flex:1;min-height:0;display:flex}
+  .card.grow .feed{flex:1;max-height:none}
 
   .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(52,211,153,.15);flex:none}
   .dot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(251,191,36,.15)}
@@ -330,7 +336,7 @@
   @media (max-width:1280px){ .kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
   @media (max-width:1080px){
     .app{flex-direction:column}
-    .rail{width:100%;height:auto;position:static;flex-direction:row;align-items:center;gap:14px;padding:12px 16px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
+    .rail{width:100%;max-width:100vw;height:auto;position:static;flex-direction:row;align-items:center;gap:14px;padding:12px 16px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
     .brand{flex:none}
     .nav{flex-direction:row;gap:2px;flex:1}
     .nav a{padding:7px 9px}
@@ -504,7 +510,7 @@
             </div>
           </section>
 
-          <section class="card" aria-labelledby="feedTitle">
+          <section class="card grow" aria-labelledby="feedTitle">
             <div class="card-head">
               <h3 id="feedTitle">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
