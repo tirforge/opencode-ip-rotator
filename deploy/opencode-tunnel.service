@@ -7,7 +7,8 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/opencode-proxy
-Environment=TUNNEL_TARGET=http://127.0.0.1:8000
+# The proxy binds only the Tailscale address, so tunnel to that (not loopback).
+Environment=TUNNEL_TARGET=http://100.90.224.42:8000
 Environment=TUNNEL_URL_FILE=/home/ubuntu/opencode-proxy/data/tunnel_url
 ExecStart=/home/ubuntu/opencode-proxy/scripts/quick_tunnel.sh
 Restart=always
