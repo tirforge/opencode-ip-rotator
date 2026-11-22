@@ -997,6 +997,7 @@ async def forward_upstream_request(
     collector_func=collect_chat_completion,
     client_wants_stream: Optional[bool] = None,
     allow_rotation: bool = True,
+    rotation_attempts: int = 2,
 ):
     start_time = time.time()
     metrics["total_requests"] += 1
@@ -1067,9 +1068,10 @@ async def forward_upstream_request(
         metrics["rate_limited_requests"] += 1
         prom_requests_rate_limited.labels(model=model_name).inc()
         category, retry_seconds, err_payload = classify_upstream_429(response)
-        if allow_rotation:
+        if allow_rotation and rotation_attempts > 0:
             # A WARP exit pool (warp-minimal) rotates its egress IP on 429,
-            # so the retry usually lands on a fresh quota.
+            # so the retry usually lands on a fresh quota. Free quota is tight,
+            # so allow one more swap before surfacing the limit to the client.
             rotated = await asyncio.to_thread(
                 request_warp_rotation, f"upstream 429 ({category})"
             )
@@ -1082,7 +1084,8 @@ async def forward_upstream_request(
                 raw_request,
                 collector_func,
                 client_wants_stream=client_wants_stream,
-                allow_rotation=False,
+                allow_rotation=True,
+                rotation_attempts=rotation_attempts - 1,
             )
         resp_headers = {"X-Rate-Limit-Reason": category}
         if retry_seconds is not None:
@@ -1127,7 +1130,7 @@ async def forward_upstream_request(
                 session.close()
                 release_flow_lease(lease_id)
                 is_rate_limit = "RateLimitError" in raw_text
-                if allow_rotation and (
+                if allow_rotation and rotation_attempts > 0 and (
                     "FreeUsageLimitError" in raw_text or is_rate_limit
                 ):
                     rotated = await asyncio.to_thread(
@@ -1142,7 +1145,8 @@ async def forward_upstream_request(
                         raw_request,
                         collector_func,
                         client_wants_stream=client_wants_stream,
-                        allow_rotation=False,
+                        allow_rotation=True,
+                        rotation_attempts=rotation_attempts - 1,
                     )
                 try:
                     err_json = json.loads(raw_text)
