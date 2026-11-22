@@ -4,8 +4,9 @@ from pathlib import Path
 import socket
 import threading
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
-from core.config import IS_VERCEL, PROXY_LIST_FILE
+from core.config import IS_VERCEL, PROXY_LIST_FILE, WARP_PROXY_URL
 
 log = logging.getLogger("services.proxy_pool")
 _proxy_pool: List[str] = []
@@ -57,6 +58,21 @@ def load_proxy_list(force: bool = False) -> None:
             log.info("Loaded %d proxies into outbound pool.", len(_proxy_pool))
 
 
+def _warp_proxy_available() -> bool:
+    """True when `warp-cli mode proxy` is listening (default 127.0.0.1:40000)."""
+    if not WARP_PROXY_URL:
+        return False
+    try:
+        parsed = urlparse(WARP_PROXY_URL)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 40000
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            return s.connect_ex((host, port)) == 0
+    except Exception:
+        return False
+
+
 def get_next_outbound_proxy() -> Optional[Dict[str, str]]:
     global _proxy_index
     load_proxy_list()
@@ -70,16 +86,7 @@ def get_next_outbound_proxy() -> Optional[Dict[str, str]]:
     if custom_proxy:
         return {"http": custom_proxy, "https": custom_proxy}
 
-    if not IS_VERCEL and not Path("/.dockerenv").exists():
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.3)
-                if s.connect_ex(("127.0.0.1", 40000)) == 0:
-                    return {
-                        "http": "socks5://127.0.0.1:40000",
-                        "https": "socks5://127.0.0.1:40000",
-                    }
-        except Exception:
-            pass
+    if not IS_VERCEL and _warp_proxy_available():
+        return {"http": WARP_PROXY_URL, "https": WARP_PROXY_URL}
 
     return None

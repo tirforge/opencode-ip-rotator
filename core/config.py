@@ -48,6 +48,11 @@ STREAM_TIMEOUT = int(os.environ.get("STREAM_TIMEOUT", "120"))
 # you pick the target.
 ALL_MODELS = os.environ.get("ALL_MODELS", "0").strip().lower() in {"1", "true", "yes", "on"}
 ALL_MODELS_TARGET = os.environ.get("ALL_MODELS_TARGET", "").strip()
+# Applied when the client does not send reasoning_effort and the model id has
+# no "#effort" suffix. Empty string disables the default.
+DEFAULT_REASONING_EFFORT = os.environ.get("DEFAULT_REASONING_EFFORT", "").strip().lower()
+# Local Cloudflare WARP proxy (warp-cli mode proxy). Used for outbound rotation.
+WARP_PROXY_URL = os.environ.get("WARP_PROXY_URL", "http://127.0.0.1:40000").strip()
 
 
 def _load_model_aliases() -> Dict[str, str]:

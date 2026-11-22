@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -8,6 +9,11 @@ from core.config import METRICS_DB_PATH
 
 log = logging.getLogger("core.db")
 _db_lock = threading.Lock()
+
+# Leases held for the lifetime of an upstream request/stream. The WARP rotator
+# reads this table before rotating so an IP change never interrupts a live
+# stream (which would break the upstream connection mid-response).
+FLOW_LEASE_TTL = float(os.environ.get("FLOW_LEASE_TTL", "1800"))
 
 
 def get_conn() -> sqlite3.Connection:
@@ -80,7 +86,57 @@ def init_db() -> None:
         )
         """
     )
+    db_execute(
+        """
+        CREATE TABLE IF NOT EXISTS active_flow_leases (
+            lease_id TEXT PRIMARY KEY,
+            created_at REAL NOT NULL,
+            expires_at REAL NOT NULL
+        )
+        """
+    )
     log.info("Database initialized at %s", METRICS_DB_PATH)
+
+
+def acquire_flow_lease(lease_id: str, ttl_seconds: float = FLOW_LEASE_TTL) -> bool:
+    """Mark an upstream flow as active so the rotator defers IP changes."""
+    now = time.time()
+    try:
+        db_execute(
+            "DELETE FROM active_flow_leases WHERE expires_at <= ?",
+            (now,),
+        )
+        db_execute(
+            "INSERT OR REPLACE INTO active_flow_leases (lease_id, created_at, expires_at) VALUES (?, ?, ?)",
+            (lease_id, now, now + max(1.0, ttl_seconds)),
+        )
+        return True
+    except Exception as exc:
+        log.warning("Failed to acquire flow lease %s: %s", lease_id, exc)
+        return False
+
+
+def release_flow_lease(lease_id: str) -> None:
+    try:
+        db_execute(
+            "DELETE FROM active_flow_leases WHERE lease_id = ?",
+            (lease_id,),
+        )
+    except Exception as exc:
+        log.warning("Failed to release flow lease %s: %s", lease_id, exc)
+
+
+def has_active_flow_leases() -> bool:
+    try:
+        db_execute(
+            "DELETE FROM active_flow_leases WHERE expires_at <= ?",
+            (time.time(),),
+        )
+        rows = db_fetchall("SELECT 1 FROM active_flow_leases LIMIT 1")
+        return bool(rows)
+    except Exception as exc:
+        log.warning("Failed to inspect flow leases: %s", exc)
+        return False
 
 
 def record_ip(ip: str, country: str = "", city: str = "", flag: str = "") -> None:

@@ -28,13 +28,18 @@ from core.config import (
     ALL_MODELS_TARGET,
     ANTHROPIC_MESSAGES_URL,
     CHAT_COMPLETIONS_URL,
+    DEFAULT_REASONING_EFFORT,
     MODEL_ALIASES,
     RESPONSES_URL,
     SAFE_UPSTREAM_HEADERS,
     STREAM_TIMEOUT,
     TLS12_CIPHERS,
 )
-from core.db import record_usage
+from core.db import (
+    acquire_flow_lease,
+    record_usage,
+    release_flow_lease,
+)
 from core.metrics import (
     metrics,
     prom_active_flows,
@@ -882,6 +887,20 @@ def resolve_model(requested: Any) -> Tuple[str, Optional[str]]:
     return get_default_model(), effort
 
 
+def apply_reasoning_effort(
+    payload: Dict[str, Any], endpoint: str, effort: Optional[str] = None
+) -> Dict[str, Any]:
+    """Apply ``#effort`` or the configured default without overriding clients."""
+    if endpoint not in ("chat_completions", "responses"):
+        return payload
+    if payload.get("reasoning_effort") is not None:
+        return payload
+    chosen = effort or DEFAULT_REASONING_EFFORT
+    if chosen:
+        payload["reasoning_effort"] = chosen
+    return payload
+
+
 async def forward_upstream_request(
     endpoint: str,
     target_url: str,
@@ -895,9 +914,7 @@ async def forward_upstream_request(
 
     model_name, effort = resolve_model(payload.get("model"))
     payload["model"] = model_name
-    if effort and endpoint in ("chat_completions", "responses") and payload.get("reasoning_effort") is None:
-        # Forward explicit effort through to the upstream model.
-        payload["reasoning_effort"] = effort
+    apply_reasoning_effort(payload, endpoint, effort)
 
     if client_wants_stream is None:
         client_wants_stream = bool(payload.get("stream", False))
@@ -908,6 +925,9 @@ async def forward_upstream_request(
     payload["stream"] = True
     headers = build_upstream_headers(raw_request, endpoint)
     proxies = get_next_outbound_proxy()
+    # Keep the rotator from changing egress IP while this flow is live.
+    lease_id = uuid.uuid4().hex
+    acquire_flow_lease(lease_id)
 
     def _execute_post():
         sess = create_upstream_session(proxies=proxies)
@@ -928,6 +948,7 @@ async def forward_upstream_request(
         response, session = await asyncio.to_thread(_execute_post)
     except Exception as exc:
         metrics["failed_requests"] += 1
+        release_flow_lease(lease_id)
         log.error("Failed connecting to upstream %s: %s", target_url, exc)
         return JSONResponse(
             status_code=502,
@@ -943,6 +964,7 @@ async def forward_upstream_request(
     # Handle HTTP error statuses
     if response.status_code == 429:
         session.close()
+        release_flow_lease(lease_id)
         metrics["rate_limited_requests"] += 1
         prom_requests_rate_limited.labels(model=model_name).inc()
         category, retry_seconds, err_payload = classify_upstream_429(response)
@@ -953,6 +975,7 @@ async def forward_upstream_request(
 
     if response.status_code >= 400:
         session.close()
+        release_flow_lease(lease_id)
         metrics["failed_requests"] += 1
         return upstream_status_response(response, model_name)
 
@@ -976,6 +999,7 @@ async def forward_upstream_request(
         first_line = await loop.run_in_executor(None, peek_first_line)
         if isinstance(first_line, Exception):
             session.close()
+            release_flow_lease(lease_id)
             return JSONResponse(
                 status_code=502,
                 content={"error": {"message": f"Stream error: {first_line}", "code": 502}},
@@ -985,6 +1009,7 @@ async def forward_upstream_request(
             raw_text = first_line.decode("utf-8", errors="ignore").strip()
             if raw_text.startswith("{") and ("FreeUsageLimitError" in raw_text or "error" in raw_text):
                 session.close()
+                release_flow_lease(lease_id)
                 try:
                     err_json = json.loads(raw_text)
                     err_exc = error_to_exception(err_json)
@@ -1012,6 +1037,7 @@ async def forward_upstream_request(
             finally:
                 prom_active_flows.dec()
                 session.close()
+                release_flow_lease(lease_id)
                 prom_request_duration.labels(
                     model=model_name, endpoint=endpoint
                 ).observe(time.time() - start_time)
@@ -1046,6 +1072,7 @@ async def forward_upstream_request(
         )
     finally:
         session.close()
+        release_flow_lease(lease_id)
 
     duration = time.time() - start_time
     prom_request_duration.labels(model=model_name, endpoint=endpoint).observe(duration)

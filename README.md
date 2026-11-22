@@ -267,6 +267,9 @@ Requests rotate across the pool in round-robin order.
 | `ALL_MODELS` | `0` | Accept any model id and route unknown ones to `ALL_MODELS_TARGET` |
 | `ALL_MODELS_TARGET` | `""` | Free model used for unknown ids when `ALL_MODELS=1` |
 | `MODEL_ALIASES` | `{}` | JSON map of model id → free model, e.g. `{"gpt-4o":"big-pickle"}` |
+| `DEFAULT_REASONING_EFFORT` | `""` | Effort applied when the client sends none (`chat`/`responses`); `#effort` and client values win |
+| `WARP_PROXY_URL` | `http://127.0.0.1:40000` | Local Cloudflare WARP proxy created by `warp-cli mode proxy` |
+| `WARP_ROTATION_INTERVAL` | `300` | Seconds between scheduled WARP rotations; `0` disables |
 | `MODEL_DISCOVERY_INTERVAL` | `300` | Interval in seconds to refresh free models |
 | `STREAM_TIMEOUT` | `120` | Maximum timeout for upstream streaming requests |
 | `PROXY_LIST_FILE` | `data/proxies.txt` | Path to custom proxy pool file |

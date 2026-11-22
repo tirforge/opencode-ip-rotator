@@ -1,3 +1,4 @@
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -40,13 +41,33 @@ class RateLimitClassificationTests(unittest.TestCase):
         category, _, _ = classify_upstream_429(response)
         self.assertEqual(category, "rate_limit")
 
-    def test_missing_lease_table_blocks_rotation_conservatively(self):
+    def test_missing_lease_table_allows_rotation(self):
         with TemporaryDirectory() as directory:
             original_path = rotator.FLOW_LEASE_DB_PATH
             try:
                 rotator.FLOW_LEASE_DB_PATH = Path(directory) / "metrics.db"
                 self.assertFalse(rotator.has_active_flow_leases())
                 connection = rotator.sqlite3.connect(str(rotator.FLOW_LEASE_DB_PATH))
+                connection.close()
+                # Table has not been created yet: no streams can be active.
+                self.assertFalse(rotator.has_active_flow_leases())
+            finally:
+                rotator.FLOW_LEASE_DB_PATH = original_path
+
+    def test_live_lease_blocks_rotation(self):
+        with TemporaryDirectory() as directory:
+            original_path = rotator.FLOW_LEASE_DB_PATH
+            try:
+                rotator.FLOW_LEASE_DB_PATH = Path(directory) / "metrics.db"
+                connection = rotator.sqlite3.connect(str(rotator.FLOW_LEASE_DB_PATH))
+                connection.execute(
+                    "CREATE TABLE active_flow_leases (lease_id TEXT PRIMARY KEY, created_at REAL, expires_at REAL)"
+                )
+                connection.execute(
+                    "INSERT INTO active_flow_leases VALUES ('live', 0, ?)",
+                    (time.time() + 60,),
+                )
+                connection.commit()
                 connection.close()
                 self.assertTrue(rotator.has_active_flow_leases())
             finally:

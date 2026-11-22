@@ -25,6 +25,10 @@ INITIAL_RETRY_DELAY = int(os.environ.get("WARP_RETRY_DELAY", "3"))
 MAX_RETRIES = int(os.environ.get("WARP_MAX_RETRIES", "5"))
 AUTO_RECYCLE_THRESHOLD = int(os.environ.get("AUTO_RECYCLE_THRESHOLD", "50"))
 CUSTOM_OUTBOUND_PROXY = os.environ.get("CUSTOM_OUTBOUND_PROXY", "").strip()
+# Native WARP proxy listener created by `warp-cli mode proxy`.
+WARP_PROXY_URL = os.environ.get("WARP_PROXY_URL", "http://127.0.0.1:40000").strip()
+ROTATOR_HOST = os.environ.get("WARP_ROTATOR_HOST", "127.0.0.1")
+ROTATOR_PORT = int(os.environ.get("WARP_ROTATOR_PORT", "8001"))
 
 # Proxy Pool Configuration
 DEFAULT_DATA_DIR = Path("/app/data") if Path("/.dockerenv").exists() else Path(__file__).resolve().parent / "data"
@@ -149,10 +153,11 @@ def has_active_flow_leases() -> bool:
         finally:
             conn.close()
     except sqlite3.OperationalError as exc:
-        # During proxy startup the table may not exist yet; never turn a DB
-        # read race into an unguarded rotation.
-        if "no such table" not in str(exc).lower():
-            log.warning("Unable to inspect active stream leases: %s", exc)
+        # During proxy startup the table may not exist yet. Treat that as "no
+        # flows" instead of blocking every rotation forever.
+        if "no such table" in str(exc).lower():
+            return False
+        log.warning("Unable to inspect active stream leases: %s", exc)
         return True
 
 
@@ -212,6 +217,67 @@ def get_public_ip_via_proxy(proxy: Dict[str, str]) -> Optional[str]:
 
 
 ip_history: List[Dict[str, Any]] = []
+
+
+def warp_proxies() -> Dict[str, str]:
+    return {"http": WARP_PROXY_URL, "https": WARP_PROXY_URL}
+
+
+def get_warp_ip(retries: int = 1, delay: float = 1.0) -> Optional[str]:
+    """Public IP as seen through the local WARP proxy listener."""
+    for attempt in range(max(1, retries)):
+        ip = get_public_ip_via_proxy(warp_proxies())
+        if ip:
+            return ip
+        if attempt + 1 < max(1, retries):
+            time.sleep(delay)
+    return None
+
+
+def _run_warp(*args: str, timeout: int = 15) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [get_warp_bin(), "--accept-tos", *args],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _warp_status_text() -> str:
+    res = _run_warp("status")
+    return f"{res.stdout or ''}{res.stderr or ''}"
+
+
+def ensure_warp_proxy() -> bool:
+    """Put warp-cli in proxy mode, register if needed, connect, verify egress."""
+    warp_bin = get_warp_bin()
+    if not shutil.which(warp_bin) and not os.path.exists(warp_bin):
+        log.error("warp-cli not found; cannot enable WARP proxy mode.")
+        return False
+
+    _run_warp("mode", "proxy")
+    time.sleep(0.3)
+    status = _warp_status_text()
+    if "Missing registration" in status:
+        log.info("No WARP registration found; registering.")
+        _run_warp("registration", "new", timeout=20)
+        time.sleep(1)
+
+    if "Connected" not in _warp_status_text():
+        log.info("Connecting WARP in proxy mode.")
+        _run_warp("connect", timeout=20)
+
+    for _ in range(20):
+        ip = get_warp_ip()
+        if ip:
+            log.info("WARP proxy ready. Egress IP: %s", ip)
+            return True
+        time.sleep(1)
+
+    log.error("WARP proxy listener did not become ready on %s", WARP_PROXY_URL)
+    return False
+
 
 def get_ip_location(ip: str) -> Dict[str, str]:
     """Fetches country, flag emoji, and location details for a given IP."""
@@ -280,7 +346,7 @@ def rotate_warp(reason: str = "Triggered") -> bool:
                 log.info("IP rotation skipped — an active streaming flow lease is in progress.")
                 return False
 
-            old_ip = _current_ip or get_public_ip()
+            old_ip = _current_ip or get_warp_ip() or get_public_ip()
             log.info(f"Initiating guaranteed IP rotation... (Reason: {reason} | Current IP: {old_ip})")
 
             # Try local WARP CLI rotation first
@@ -301,15 +367,15 @@ def rotate_warp(reason: str = "Triggered") -> bool:
                                 break
                         subprocess.run([warp_bin, "--accept-tos", "registration", "new"], capture_output=True, text=True, timeout=10, check=False)
                         time.sleep(0.5)
-                        if not Path("/.dockerenv").exists():
-                            subprocess.run([warp_bin, "--accept-tos", "mode", "proxy"], capture_output=True, text=True, timeout=10, check=False)
-                            time.sleep(0.3)
+                        _run_warp("mode", "proxy")
+                        time.sleep(0.3)
 
                         res = subprocess.run([warp_bin, "--accept-tos", "connect"], capture_output=True, text=True, timeout=10, check=False)
 
                         if res.returncode == 0:
-                            time.sleep(3)
-                            new_ip = get_public_ip()
+                            # The proxy listener may take a few seconds to come
+                            # back after re-registration.
+                            new_ip = get_warp_ip(retries=12, delay=1.0)
 
                             if new_ip and new_ip != old_ip:
                                 _current_ip = new_ip
@@ -343,7 +409,7 @@ def rotate_warp(reason: str = "Triggered") -> bool:
 
                                 log.info(f"Guaranteed WARP IP rotation successful! New Verified IP: {new_ip} {loc.get('flag')} ({loc.get('country')}) (Total Rotations: {rotation_count})")
 
-                                if rotation_count >= AUTO_RECYCLE_THRESHOLD:
+                                if rotation_count >= AUTO_RECYCLE_THRESHOLD and Path("/.dockerenv").exists():
                                     log.warning(f"Auto-recycle threshold reached ({rotation_count}/{AUTO_RECYCLE_THRESHOLD}). Triggering container refresh...")
                                     trigger_container_recycle()
 
@@ -479,7 +545,7 @@ def start_rotator_http_server():
         def http_status():
             return {"current_ip": _current_ip, "rotations": rotation_count, "history": ip_history}
 
-        uvicorn.run(rotator_app, host="0.0.0.0", port=8001, log_level="warning")
+        uvicorn.run(rotator_app, host=ROTATOR_HOST, port=ROTATOR_PORT, log_level="warning")
     except Exception as e:
         log.error(f"Failed to start rotator HTTP listener: {e}")
 
@@ -499,15 +565,16 @@ def main() -> None:
     elevate()
     load_proxy_list()
     global _current_ip
-    _current_ip = get_public_ip()
+    if not ensure_warp_proxy():
+        log.error("WARP proxy mode is unavailable; rotations will fail until warp-cli works.")
+    _current_ip = get_warp_ip(retries=3) or get_public_ip()
     log.info(f"Starting IP Rotator Node... Initial Verified Public IP: {_current_ip}")
 
     stop_event = threading.Event()
 
     def _handle_signal(signum, frame):
-        log.warning(f"Received signal {signum}, shutting down rotator...")
+        log.warning(f"Received signal {signum}, shutting down rotator (WARP left connected)...")
         stop_event.set()
-        _cleanup_warp()
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, _handle_signal)
@@ -525,9 +592,8 @@ def main() -> None:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        log.info("Shutting down Rotator...")
+        log.info("Shutting down Rotator (WARP left connected)...")
         stop_event.set()
-        _cleanup_warp()
 
 if __name__ == "__main__":
     main()
