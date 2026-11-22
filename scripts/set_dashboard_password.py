@@ -61,9 +61,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     password = args.password or generate()
-    if len(password) < 12:
-        print("Refusing: use at least 12 characters.", file=sys.stderr)
+    if not password:
+        print("Refusing: empty password.", file=sys.stderr)
         return 2
+    if len(password) < 12:
+        print(
+            f"Warning: {len(password)} characters is weak for a public endpoint. "
+            "Login throttling is still enforced.",
+            file=sys.stderr,
+        )
 
     if args.print_only:
         print(password)
