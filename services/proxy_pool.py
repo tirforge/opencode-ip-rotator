@@ -1,10 +1,11 @@
 import logging
 import os
+import time
 from pathlib import Path
 import socket
 import threading
-from typing import Dict, List, Optional
-from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse, urlunparse
 
 from core.config import (
     IS_VERCEL,
@@ -20,6 +21,126 @@ _proxy_index = 0
 _proxy_lock = threading.Lock()
 _last_proxy_mtime: float = 0.0
 _warp_index: Optional[int] = None
+
+# --- warp-minimal exit pinning (round-robin over the pool's exits) ----------
+# warp-minimal hands every flow the first healthy exit unless the request pins
+# one via ``Proxy-Authorization: Basic <exit-id>:``. Spreading requests across
+# all exits multiplies the usable free quota instead of sharing one window.
+_EXIT_ROUTING = os.environ.get("WARP_EXIT_ROUTING", "auto").strip().lower()
+_EXIT_CACHE_TTL = float(os.environ.get("WARP_EXIT_CACHE_TTL", "10"))
+_EXIT_FAILURE_TTL = float(os.environ.get("WARP_EXIT_FAILURE_TTL", "20"))
+_EXIT_COOLDOWN_SECONDS = float(os.environ.get("WARP_EXIT_COOLDOWN", "900"))
+_exit_index = 0
+_exit_cache: List[Dict[str, Any]] = []
+_exit_cache_at = 0.0
+_exit_refreshing = False
+_exit_cooldowns: Dict[str, float] = {}
+
+
+class ExitProxyDict(Dict[str, str]):
+    """Proxy mapping that remembers which WARP exit it is pinned to."""
+
+    def __init__(self, mapping: Dict[str, str], exit_id: Optional[str] = None):
+        super().__init__(mapping)
+        self.exit_id = exit_id
+
+
+def exit_id_for(proxies: Optional[Dict[str, str]]) -> Optional[str]:
+    """The WARP exit a proxy mapping is pinned to, if any."""
+    return getattr(proxies, "exit_id", None)
+
+
+def mark_exit_rate_limited(exit_id: Optional[str], seconds: Optional[float] = None) -> None:
+    """Stop routing new requests to an exit that just exhausted its quota."""
+    if not exit_id:
+        return
+    now = time.time()
+    window = _EXIT_COOLDOWN_SECONDS if seconds is None else max(0.0, seconds)
+    with _proxy_lock:
+        _exit_cooldowns[exit_id] = now + window
+        for stale in [key for key, until in _exit_cooldowns.items() if until <= now]:
+            _exit_cooldowns.pop(stale, None)
+    log.info(
+        "WARP exit %s rate-limited; skipping it for %ds", exit_id, int(window)
+    )
+
+
+def _refresh_exit_cache(now: float) -> None:
+    """Fetch exit facts off the event loop; failures back off via the TTL."""
+    global _exit_cache, _exit_cache_at, _exit_refreshing
+    try:
+        from services import warp_admin
+
+        exits = warp_admin.pool_exits(timeout=2.0)
+    except Exception as exc:  # noqa: BLE001 - routing must never break a request
+        log.debug("Could not read warp-minimal exits: %s", exc)
+        exits = []
+    with _proxy_lock:
+        _exit_cache = [item for item in exits if isinstance(item, dict)]
+        _exit_cache_at = now
+        _exit_refreshing = False
+
+
+def _warp_exit_list() -> List[Dict[str, Any]]:
+    """Cached warp-minimal exit facts, refreshed in the background.
+
+    Never blocks a request on the admin API: a stale list is returned while a
+    refresh thread runs, and a failed refresh backs off for a longer TTL.
+    """
+    global _exit_refreshing
+    if _EXIT_ROUTING == "off" or not WARP_PROXY_URL:
+        return []
+    now = time.time()
+    with _proxy_lock:
+        cached = list(_exit_cache)
+        ttl = _EXIT_CACHE_TTL if cached else _EXIT_FAILURE_TTL
+        fresh = bool(_exit_cache_at) and now - _exit_cache_at < ttl
+        if fresh:
+            return cached
+        if _exit_refreshing:
+            return cached
+        _exit_refreshing = True
+    threading.Thread(target=_refresh_exit_cache, args=(now,), daemon=True).start()
+    return cached
+
+
+def _eligible_exits() -> List[Dict[str, Any]]:
+    now = time.time()
+    with _proxy_lock:
+        cooled = {key for key, until in _exit_cooldowns.items() if until > now}
+    eligible = []
+    for item in _warp_exit_list():
+        exit_id = str(item.get("id") or "")
+        if not exit_id or item.get("state") not in ("healthy", "in_use"):
+            continue
+        if exit_id in cooled:
+            continue
+        eligible.append(item)
+    return eligible
+
+
+def _pinned_warp_proxy() -> Optional[ExitProxyDict]:
+    """Round-robin one warp-minimal exit so requests spread across the pool."""
+    global _exit_index
+    if _EXIT_ROUTING == "off":
+        return None
+    exits = _eligible_exits()
+    if len(exits) < 2:
+        # A single usable exit is exactly what sticky acquisition gives us.
+        return None
+    parsed = urlparse(
+        WARP_PROXY_URL if "://" in WARP_PROXY_URL else f"http://{WARP_PROXY_URL}"
+    )
+    if not parsed.hostname:
+        return None
+    with _proxy_lock:
+        chosen = exits[_exit_index % len(exits)]
+        _exit_index = (_exit_index + 1) % len(exits)
+    exit_id = str(chosen.get("id"))
+    netloc = f"{exit_id}:@{parsed.hostname}:{parsed.port or 80}"
+    url = urlunparse((parsed.scheme or "http", netloc, "", "", "", ""))
+    return ExitProxyDict({"http": url, "https": url}, exit_id=exit_id)
+
 
 
 def _normalize_proxy(line: str) -> str:
@@ -155,6 +276,10 @@ def get_next_outbound_proxy() -> Optional[Dict[str, str]]:
     custom_proxy = os.environ.get("CUSTOM_OUTBOUND_PROXY", "").strip()
     if custom_proxy:
         return {"http": custom_proxy, "https": custom_proxy}
+
+    pinned = _pinned_warp_proxy()
+    if pinned:
+        return pinned
 
     if not IS_VERCEL and _warp_proxy_available():
         return {"http": WARP_PROXY_URL, "https": WARP_PROXY_URL}

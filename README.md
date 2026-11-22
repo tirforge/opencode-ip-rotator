@@ -18,7 +18,7 @@ Fork maintained by [@tirforge](https://github.com/tirforge). The web dashboard u
 - **OpenAI & Anthropic Compatible:** Exposes `/v1/chat/completions`, `/v1/messages`, and `/v1/models` for OpenCode, Claude clients, Cursor, or standard SDKs.
 - **Protocol & TLS Compatibility:** Injects required OpenCode session headers, environment markers, and matches OpenSSL TLS 1.2 ciphers expected by upstream Cloudflare gates.
 - **Dynamic Model Discovery:** Periodically checks OpenCode's catalog and automatically exposes all free models (including `big-pickle`) without manual configuration.
-- **IP Rotation & Proxy Pool:** Rotates egress IPs via Cloudflare WARP or through a custom proxy pool defined in `proxies.txt`.
+- **IP Rotation & Proxy Pool:** Rotates egress IPs via Cloudflare WARP or through a custom proxy pool defined in `proxies.txt`. With warp-minimal, requests are pinned round-robin to every exit, so each fresh IPv6 carries its own free quota instead of all flows sharing one window.
 - **Stream Safety:** Protects active SSE streaming sessions from IP rotation interruptions until generation completes.
 - **Web Dashboard & Metrics:** Real-time web UI at `/dashboard` displaying token counts, verified public IP, active connections, and SQLite history. The `tok/s` figure is generated output tokens (reasoning + visible text) divided by the first-to-last streamed chunk, so it reflects real generation speed rather than round-trip latency.
 
@@ -273,6 +273,9 @@ Requests rotate across the pool in round-robin order.
 | `WARP_PROXY_URL` | `http://127.0.0.1:40000` | Local Cloudflare WARP proxy created by `warp-cli mode proxy` |
 | `WARP_POOL` | `""` | Comma-separated HTTP proxies, one per independent WARP registration (`usque http-proxy`). Rotation switches exits instantly and always changes IP |
 | `WARP_ROTATOR_URL` | `http://warp-rotator:8001` | Rotator API; the proxy rotates and retries once on upstream 429 |
+| `WARP_EXIT_ROUTING` | `auto` | `auto`/`round-robin` spreads requests across every warp-minimal exit (each gets its own quota); `off` keeps the sticky single-exit behaviour |
+| `WARP_EXIT_COOLDOWN` | `900` | Seconds an exit is skipped locally after it returns 429, so retries land on a fresh exit |
+| `WARP_EXIT_CACHE_TTL` | `10` | Seconds between background refreshes of the exit list from warp-minimal |
 | `WARP_ROTATION_INTERVAL` | `300` | Seconds between scheduled WARP rotations; `0` disables |
 | `MODEL_DISCOVERY_INTERVAL` | `300` | Interval in seconds to refresh free models |
 | `STREAM_TIMEOUT` | `120` | Maximum timeout for upstream streaming requests |

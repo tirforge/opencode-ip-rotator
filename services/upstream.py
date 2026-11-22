@@ -56,7 +56,12 @@ from core.metrics import (
 )
 from services import warp_admin
 from services.discovery import get_default_model, get_discovered_models
-from services.proxy_pool import get_next_outbound_proxy, rotate_warp_pool
+from services.proxy_pool import (
+    exit_id_for,
+    get_next_outbound_proxy,
+    mark_exit_rate_limited,
+    rotate_warp_pool,
+)
 
 log = logging.getLogger("services.upstream")
 
@@ -1038,8 +1043,13 @@ ROTATION_COOLDOWN = float(os.environ.get("WARP_ROTATION_COOLDOWN", "3"))
 ROTATION_SETTLE_SECONDS = float(os.environ.get("WARP_ROTATION_SETTLE", "15"))
 
 
-def request_warp_rotation(reason: str = "upstream 429") -> bool:
+def request_warp_rotation(
+    reason: str = "upstream 429", exit_id: Optional[str] = None
+) -> bool:
     """Switch to a fresh WARP egress IP (cooldown-guarded).
+
+    When ``exit_id`` names the pinned exit that hit the limit, only that exit is
+    swapped so the rest of the pool keeps serving.
 
     Order of preference:
     1. A configured pool of plain HTTP proxies (one WARP registration each).
@@ -1061,7 +1071,7 @@ def request_warp_rotation(reason: str = "upstream 429") -> bool:
     if (WARP_ADMIN_URL or "").strip():
         before = warp_admin.snapshot()
         old_ips = {ip for ip in (before.get("ips") or []) if ip}
-        ok, detail = warp_admin.rotate_exit()
+        ok, detail = warp_admin.rotate_exit(exit_id)
         if not ok and detail == "no_standby":
             ok, detail = warp_admin.recycle_pool()
         if ok:
@@ -1139,6 +1149,7 @@ async def forward_upstream_request(
     payload["stream"] = True
     headers = build_upstream_headers(raw_request, endpoint)
     proxies = get_next_outbound_proxy()
+    pinned_exit = exit_id_for(proxies)
     # Keep the rotator from changing egress IP while this flow is live.
     lease_id = uuid.uuid4().hex
     acquire_flow_lease(lease_id)
@@ -1192,12 +1203,16 @@ async def forward_upstream_request(
         metrics["rate_limited_requests"] += 1
         prom_requests_rate_limited.labels(model=model_name).inc()
         category, retry_seconds, err_payload = classify_upstream_429(response)
+        if pinned_exit:
+            mark_exit_rate_limited(pinned_exit)
         if allow_rotation and rotation_attempts > 0:
             # A WARP exit pool (warp-minimal) rotates its egress IP on 429,
             # so the retry usually lands on a fresh quota. Free quota is tight,
             # so allow one more swap before surfacing the limit to the client.
             rotated = await asyncio.to_thread(
-                request_warp_rotation, f"upstream 429 ({category})"
+                request_warp_rotation,
+                f"upstream 429 ({category})",
+                pinned_exit,
             )
             if not rotated:
                 await asyncio.sleep(2)
@@ -1257,8 +1272,10 @@ async def forward_upstream_request(
                 if allow_rotation and rotation_attempts > 0 and (
                     "FreeUsageLimitError" in raw_text or is_rate_limit
                 ):
+                    if pinned_exit:
+                        mark_exit_rate_limited(pinned_exit)
                     rotated = await asyncio.to_thread(
-                        request_warp_rotation, "stream 429"
+                        request_warp_rotation, "stream 429", pinned_exit
                     )
                     if not rotated:
                         await asyncio.sleep(2)
@@ -1353,7 +1370,11 @@ async def forward_upstream_request(
     except UpstreamAPIError as exc:
         session.close()
         if allow_rotation and exc.kind in {"free_usage_limit", "rate_limit"}:
-            await asyncio.to_thread(request_warp_rotation, f"assembled {exc.kind}")
+            if pinned_exit:
+                mark_exit_rate_limited(pinned_exit)
+            await asyncio.to_thread(
+                request_warp_rotation, f"assembled {exc.kind}", pinned_exit
+            )
             await asyncio.sleep(2)
             return await forward_upstream_request(
                 endpoint,

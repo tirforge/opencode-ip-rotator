@@ -59,8 +59,8 @@ def pool_health() -> Dict[str, Any]:
     return body
 
 
-def pool_exits() -> List[Dict[str, Any]]:
-    status, body = _request("/exits", timeout=6.0)
+def pool_exits(timeout: float = 6.0) -> List[Dict[str, Any]]:
+    status, body = _request("/exits", timeout=timeout)
     if status == 200 and isinstance(body, list):
         return [exit_info for exit_info in body if isinstance(exit_info, dict)]
     return []
