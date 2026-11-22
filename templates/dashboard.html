@@ -517,7 +517,7 @@
     renderRotations((data.rotations || {}).recent || []);
     renderFeed(data.events || []);
     renderModels(data.models || {});
-    drawChart(data.series || []);
+    try { drawChart(data.series || []); } catch (err) { console.warn("chart render failed", err); }
 
     const tunnel = data.tunnel || {};
     setText("tunnelUrl", tunnel.url || "not connected");
@@ -553,10 +553,10 @@
     if (!items.length) { box.innerHTML = ""; return; }
     box.innerHTML = `<div class="hint" style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Recent rotations</div>` +
       items.map((r) => `
-        <div class="rot">
-          <span class="mono">${esc(r.old_ip || "—")}</span>
+        <div class="rot" title="${esc(r.reason || "rotation")}">
+          <span class="mono">${esc(r.old_ip || "pool")}</span>
           <span class="arrow">→</span>
-          <span class="mono">${esc(r.new_ip || "—")}</span>
+          <span class="mono">${esc(r.new_ip || "new exit")}</span>
           <time>${esc(ago(r.timestamp))}</time>
         </div>`).join("");
   }
@@ -621,6 +621,7 @@
     grad.addColorStop(1, "rgba(34,211,238,.45)");
 
     const bw = Math.max(2, Math.min(16, step * 0.62));
+    const radius = Math.min(4, bw / 2);
     series.forEach((p, i) => {
       const x = pad.l + i * step + (step - bw) / 2;
       const okH = (p.ok / max) * innerH;
@@ -628,13 +629,12 @@
       if (p.ok) {
         ctx.fillStyle = grad;
         const y = pad.t + innerH - okH;
-        const r = Math.min(4, bw / 2);
-        ctx.beginPath(); ctx.roundRect(x, y, bw, okH, [r, r, 0, 0]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(x, y, bw, okH, [radius, radius, 0, 0]); ctx.fill();
       }
       if (p.error) {
         ctx.fillStyle = "rgba(248,113,113,.9)";
         const y = pad.t + innerH - okH - errH;
-        ctx.beginPath(); ctx.roundRect(x, y, bw, Math.max(2, errH), [r, r, 0, 0]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(x, y, bw, Math.max(2, errH), [radius, radius, 0, 0]); ctx.fill();
       }
     });
 
