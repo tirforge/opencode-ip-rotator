@@ -20,7 +20,7 @@ Fork maintained by [@tirforge](https://github.com/tirforge). The web dashboard u
 - **Dynamic Model Discovery:** Periodically checks OpenCode's catalog and automatically exposes all free models (including `big-pickle`) without manual configuration.
 - **IP Rotation & Proxy Pool:** Rotates egress IPs via Cloudflare WARP or through a custom proxy pool defined in `proxies.txt`.
 - **Stream Safety:** Protects active SSE streaming sessions from IP rotation interruptions until generation completes.
-- **Web Dashboard & Metrics:** Real-time web UI at `/dashboard` displaying token counts, verified public IP, active connections, and SQLite history.
+- **Web Dashboard & Metrics:** Real-time web UI at `/dashboard` displaying token counts, verified public IP, active connections, and SQLite history. The `tok/s` figure is generated output tokens (reasoning + visible text) divided by the first-to-last streamed chunk, so it reflects real generation speed rather than round-trip latency.
 
 ---
 

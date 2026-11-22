@@ -100,6 +100,15 @@ def build_models(payload: Any) -> Dict[str, Dict[str, Any]]:
                     continue
                 seen.add(effort)
                 variants[effort] = {"reasoningEffort": effort}
+            # The proxy defaults to ``medium``, so keep that tier selectable even
+            # when the catalog only advertises low/high (a middle tier exists).
+            if "medium" not in variants and {"low", "high"} <= set(variants):
+                ordered: Dict[str, Dict[str, str]] = {}
+                for effort, value in variants.items():
+                    ordered[effort] = value
+                    if effort == "low":
+                        ordered["medium"] = {"reasoningEffort": "medium"}
+                variants = ordered
             entry["variants"] = variants
         models[model_id] = entry
 

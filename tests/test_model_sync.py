@@ -80,7 +80,8 @@ class ModelSyncTests(unittest.TestCase):
             list(models["beam-free"]["variants"]), ["low", "medium", "high", "xhigh", "max"]
         )
         self.assertEqual(
-            list(models["deepseek-v4.1-flash-free"]["variants"]), ["low", "high", "max"]
+            list(models["deepseek-v4.1-flash-free"]["variants"]),
+            ["low", "medium", "high", "max"],
         )
         self.assertEqual(list(models["hy4-flash-free"]["variants"]), ["none", "high"])
         self.assertNotIn("variants", models["big-pickle"])
