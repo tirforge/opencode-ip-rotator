@@ -61,14 +61,14 @@ class DashboardApiTests(unittest.TestCase):
         resp = self.client.get(
             f"/dashboard?key={TEST_KEY}", follow_redirects=False
         )
-        self.assertEqual(resp.status_code, 302)
-        self.assertIn("oc_proxy_session", resp.cookies)
+        self.assertEqual(resp.status_code, 303)
+        self.assertIn("oc_dash", resp.cookies)
 
     def test_dashboard_renders_with_cookie(self):
         self.client.get(f"/dashboard?key={TEST_KEY}", follow_redirects=False)
         resp = self.client.get("/dashboard")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("Control room", resp.text)
+        self.assertIn("Gateway overview", resp.text)
 
     # -- overview -----------------------------------------------------
     @patch("services.warp_admin.snapshot")
@@ -142,7 +142,7 @@ class DashboardApiTests(unittest.TestCase):
         resp = self.client.get(
             f"/dashboard?key={created['key']}", follow_redirects=False
         )
-        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.status_code, 303)
         self.assertEqual(self.client.get("/dashboard").status_code, 200)
 
     # -- rotation -----------------------------------------------------

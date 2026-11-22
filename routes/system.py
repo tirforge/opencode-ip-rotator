@@ -1,10 +1,7 @@
 import logging
 import time
-from pathlib import Path
 
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from core.auth import auth_summary
@@ -12,25 +9,25 @@ from core.config import IS_VERCEL
 from core.db import get_recent_ips, load_all_usage
 from core.metrics import STARTUP_TIME, metrics
 from core.netinfo import get_ip_info
+from core.sysinfo import snapshot as system_snapshot
 from services.discovery import get_discovered_models
 
 log = logging.getLogger("routes.system")
 router = APIRouter()
-
-_TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
-templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 
 
 @router.get("/health")
 @router.get("/status")
 async def health_check():
     models = get_discovered_models()
+    system = system_snapshot()
     return {
         "status": "healthy",
         "timestamp": int(time.time()),
         "uptime_seconds": int(time.time() - STARTUP_TIME),
         "discovered_models_count": len(models),
         "serverless": IS_VERCEL,
+        "host": (system.get("host") or {}).get("nodename") if system.get("available") else None,
     }
 
 
@@ -54,16 +51,8 @@ async def get_metrics(request: Request):
         "discovered_models": [m["id"] for m in models],
         "serverless": IS_VERCEL,
         "security": auth_summary(),
+        "system": system_snapshot(),
     }
-
-
-@router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "dashboard.html",
-        {"metrics": metrics, "serverless": IS_VERCEL},
-    )
 
 
 @router.get("/dashboard/stats")
@@ -86,4 +75,5 @@ async def dashboard_stats():
         "model_usage": load_all_usage(),
         "recent_ips": get_recent_ips(limit=10),
         "security": auth_summary(),
+        "system": system_snapshot(),
     }

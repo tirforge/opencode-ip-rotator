@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 
 from core.auth import ApiKeyMiddleware
 from core.config import (
@@ -16,10 +15,12 @@ from core.config import (
 )
 from core.db import init_db
 from core.events import RequestLogMiddleware
+from core.security import SecurityHeadersMiddleware
 from routes.api import router as api_router
 from routes.chat import router as chat_router
 from routes.models import router as models_router
 from routes.system import router as system_router
+from routes.web import router as web_router
 from services.discovery import refresh_models_once, start_discovery, stop_discovery
 from services.proxy_pool import load_proxy_list
 
@@ -75,16 +76,15 @@ app.add_middleware(
     window=PROXY_RATE_WINDOW,
     allowlist=PROXY_IP_ALLOWLIST,
 )
+# Outermost: every response (including auth rejections) gets the hardening
+# headers and a fresh CSP nonce.
+app.add_middleware(SecurityHeadersMiddleware)
 
+app.include_router(web_router)
 app.include_router(chat_router)
 app.include_router(models_router)
 app.include_router(system_router)
 app.include_router(api_router)
-
-
-@app.get("/", include_in_schema=False)
-async def root():
-    return RedirectResponse(url="/dashboard")
 
 
 if __name__ == "__main__":

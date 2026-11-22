@@ -48,7 +48,7 @@ class AuthTests(unittest.TestCase):
 
     def test_dashboard_key_is_exchanged_for_cookie(self):
         resp = self.client.get(f"/dashboard?key={TEST_KEY}", follow_redirects=False)
-        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.status_code, 303)
         self.assertIn(COOKIE_NAME, resp.cookies)
 
     def test_dashboard_stats_accepts_cookie(self):

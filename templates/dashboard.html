@@ -4,434 +4,708 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#070b14">
-<title>OpenCode Proxy · Control Room</title>
-<style>
+<meta name="theme-color" content="#05070d">
+<meta name="robots" content="noindex, nofollow">
+<meta name="csrf-token" content="{{ csrf }}">
+<title>Control Room · OpenCode Proxy</title>
+<style nonce="{{ nonce }}">
   :root{
-    --bg:#070b14;
-    --bg-2:#0b1220;
-    --panel:rgba(255,255,255,.035);
-    --panel-solid:#0e1626;
-    --line:rgba(255,255,255,.085);
-    --line-strong:rgba(255,255,255,.14);
-    --text:#e8edf7;
-    --muted:#8b98ad;
-    --dim:#5d6b80;
-    --violet:#8b5cf6;
-    --cyan:#22d3ee;
+    --bg:#05070d;
+    --bg-2:#080d17;
+    --panel:rgba(13,19,32,.78);
+    --panel-solid:#0b1220;
+    --line:rgba(255,255,255,.075);
+    --line-2:rgba(255,255,255,.13);
+    --text:#e9eefb;
+    --muted:#93a1ba;
+    --dim:#5f6d86;
+    --indigo:#7c8cff;
+    --cyan:#35e0f0;
     --green:#34d399;
     --amber:#fbbf24;
-    --red:#f87171;
-    --radius:18px;
-    --shadow:0 20px 50px -24px rgba(0,0,0,.9);
+    --red:#fb7185;
+    --r:20px;
+    --r-sm:13px;
+    --shadow:0 26px 60px -30px rgba(0,0,0,.95);
     --font:"Inter","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;
     --mono:"JetBrains Mono","Cascadia Code",Consolas,ui-monospace,monospace;
   }
   *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
   html,body{margin:0;min-height:100%}
   body{
-    font-family:var(--font);
-    color:var(--text);
+    font-family:var(--font);color:var(--text);
     background:
-      radial-gradient(900px 520px at 12% -8%, rgba(139,92,246,.20), transparent 62%),
-      radial-gradient(820px 520px at 92% 0%, rgba(34,211,238,.14), transparent 60%),
-      radial-gradient(700px 600px at 50% 110%, rgba(52,211,153,.08), transparent 65%),
+      radial-gradient(1100px 620px at 8% -12%,rgba(99,102,241,.20),transparent 60%),
+      radial-gradient(900px 560px at 96% -6%,rgba(34,211,238,.13),transparent 58%),
+      radial-gradient(900px 700px at 55% 115%,rgba(52,211,153,.07),transparent 62%),
       var(--bg);
-    -webkit-font-smoothing:antialiased;
-    text-rendering:optimizeLegibility;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
   }
   body::before{
-    content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
-    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
-    background-size:52px 52px;
-    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 30%,transparent 75%);
+    content:"";position:fixed;inset:0;pointer-events:none;opacity:.4;z-index:0;
+    background-image:linear-gradient(rgba(255,255,255,.032) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.032) 1px,transparent 1px);
+    background-size:56px 56px;
+    mask-image:radial-gradient(ellipse 80% 55% at 50% 0%,#000 25%,transparent 78%);
   }
   a{color:var(--cyan);text-decoration:none}
   button{font:inherit;color:inherit;cursor:pointer}
-  ::selection{background:rgba(139,92,246,.45)}
-  .shell{width:min(100% - 36px,1240px);margin-inline:auto;position:relative;z-index:1}
+  ::selection{background:rgba(124,140,255,.42)}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-  /* ---------- header ---------- */
-  header{position:sticky;top:0;z-index:30;backdrop-filter:blur(18px) saturate(140%);background:linear-gradient(180deg,rgba(7,11,20,.92),rgba(7,11,20,.66));border-bottom:1px solid var(--line)}
-  .topbar{display:flex;align-items:center;gap:18px;min-height:72px}
-  .brand{display:flex;align-items:center;gap:12px;min-width:0}
-  .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--violet),var(--cyan));box-shadow:0 8px 26px -8px rgba(139,92,246,.85);flex:none}
-  .logo svg{width:22px;height:22px;color:#060a12}
-  .brand-text{min-width:0}
-  .brand h1{margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
-  .brand p{margin:2px 0 0;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .spacer{flex:1}
-  .pill{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:12px;color:var(--muted);white-space:nowrap}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(52,211,153,.16);animation:pulse 2.4s ease-in-out infinite}
-  .dot.bad{background:var(--red);box-shadow:0 0 0 3px rgba(248,113,113,.16)}
-  .dot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(251,191,36,.16)}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-  .icon-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);font-size:12.5px;transition:.18s}
-  .icon-btn:hover{background:rgba(255,255,255,.08);border-color:var(--line-strong);transform:translateY(-1px)}
-  .icon-btn svg{width:15px;height:15px}
+  /* ---------------- shell ---------------- */
+  .app{display:flex;min-height:100vh;position:relative;z-index:1}
+  .rail{
+    width:250px;flex:none;position:sticky;top:0;height:100vh;padding:22px 15px 18px;
+    display:flex;flex-direction:column;gap:22px;
+    border-right:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(9,14,24,.92),rgba(5,8,14,.86));
+    backdrop-filter:blur(16px);
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 6px}
+  .logo{
+    width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(140deg,var(--indigo),var(--cyan));
+    box-shadow:0 14px 32px -14px rgba(99,102,241,.9);
+  }
+  .logo svg{width:21px;height:21px;color:#050810}
+  .brand strong{display:block;font-size:14px;letter-spacing:-.015em}
+  .brand span{display:block;font-size:10.5px;color:var(--dim);margin-top:1px}
 
-  /* ---------- layout ---------- */
-  main{padding:30px 0 70px}
-  .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:22px;flex-wrap:wrap}
-  .hero h2{margin:0;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.035em;font-weight:750;line-height:1.1}
-  .hero p{margin:8px 0 0;color:var(--muted);font-size:13.5px;max-width:62ch}
-  .tunnel{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(34,211,238,.06);max-width:100%}
-  .tunnel .label{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);font-weight:700}
-  .tunnel code{font-family:var(--mono);font-size:12px;color:var(--text);max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nav{display:flex;flex-direction:column;gap:3px}
+  .nav a{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:11px;
+    color:var(--muted);font-size:12.5px;font-weight:550;transition:.16s;
+  }
+  .nav a svg{width:16px;height:16px;opacity:.8;flex:none}
+  .nav a:hover{background:rgba(255,255,255,.045);color:var(--text)}
+  .nav a.active{background:linear-gradient(100deg,rgba(124,140,255,.18),rgba(53,224,240,.06));color:#fff;box-shadow:inset 0 0 0 1px rgba(124,140,255,.22)}
+  .nav .tag{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:1px 6px}
 
-  .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin-bottom:16px}
-  .stat{position:relative;overflow:hidden;padding:17px 17px 15px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow)}
-  .stat::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.05),transparent 45%);pointer-events:none}
-  .stat .k{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:650}
-  .stat .k svg{width:13px;height:13px;opacity:.8}
-  .stat .v{margin:10px 0 0;font-size:26px;font-weight:750;letter-spacing:-.04em;font-variant-numeric:tabular-nums;line-height:1.05}
-  .stat .s{margin:6px 0 0;font-size:11.5px;color:var(--dim)}
-  .stat.accent{background:linear-gradient(150deg,rgba(139,92,246,.18),rgba(34,211,238,.06) 60%,transparent);border-color:rgba(139,92,246,.32)}
-  .mono{font-family:var(--mono);letter-spacing:-.02em}
+  .rail-card{
+    margin-top:auto;border:1px solid var(--line);border-radius:15px;padding:13px;
+    background:linear-gradient(160deg,rgba(23,32,52,.72),rgba(10,15,26,.6));
+  }
+  .rail-card .top{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .rail-card .ip{font-family:var(--mono);font-size:12px;margin-top:9px;overflow-wrap:anywhere;color:var(--text)}
+  .rail-card .sub{font-size:10.5px;color:var(--dim);margin-top:5px;line-height:1.5}
+  .rail-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px}
+  .logout{
+    display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:rgba(255,255,255,.03);
+    color:var(--muted);border-radius:9px;padding:6px 9px;font-size:11px;transition:.16s;
+  }
+  .logout:hover{color:#fecdd3;border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.1)}
+  .logout svg{width:13px;height:13px}
+  .version{font-family:var(--mono);font-size:10px;color:var(--dim)}
 
-  .grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:16px}
-  .col{display:flex;flex-direction:column;gap:16px;min-width:0}
-  .panel{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow);overflow:hidden}
-  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
-  .panel-head h3{margin:0;font-size:13.5px;font-weight:700;letter-spacing:-.01em}
-  .panel-head .hint{font-size:11.5px;color:var(--dim)}
-  .panel-head .spacer{flex:1}
-  .panel-body{padding:16px 18px}
-  .panel-body.tight{padding:10px 18px 14px}
+  .main{flex:1;min-width:0;padding:24px 30px 64px}
+  .main-inner{width:min(100%,1440px);margin:0 auto}
 
-  /* egress */
-  .egress{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-  .egress .ip{font-family:var(--mono);font-size:clamp(17px,2.2vw,23px);font-weight:600;letter-spacing:-.03em;overflow-wrap:anywhere}
-  .egress .meta{color:var(--dim);font-size:11.5px;margin-top:4px}
-  .btn-primary{display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border:0;border-radius:12px;font-weight:700;font-size:13px;color:#080c14;background:linear-gradient(135deg,#a78bfa,#22d3ee);box-shadow:0 12px 30px -12px rgba(34,211,238,.7);transition:.18s;white-space:nowrap}
-  .btn-primary:hover{transform:translateY(-1px);filter:brightness(1.06)}
-  .btn-primary:disabled{opacity:.65;cursor:wait;transform:none}
-  .btn-primary svg{width:15px;height:15px}
+  /* ---------------- topbar ---------------- */
+  .topbar{display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+  .eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .topbar h1{margin:3px 0 0;font-size:22px;letter-spacing:-.035em;font-weight:740;line-height:1.1}
+  .topbar .spacer{flex:1}
+  .clock{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding:7px 11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.02)}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;
+    border:1px solid var(--line);background:rgba(255,255,255,.035);color:var(--text);font-size:12px;
+    transition:.16s;white-space:nowrap;
+  }
+  .btn:hover{background:rgba(255,255,255,.07);border-color:var(--line-2);transform:translateY(-1px)}
+  .btn svg{width:14px;height:14px}
+  .btn.small{padding:5px 9px;font-size:10.5px;border-radius:8px}
+
+  /* ---------------- hero ---------------- */
+  .hero{
+    position:relative;overflow:hidden;border:1px solid var(--line);border-radius:calc(var(--r) + 4px);
+    padding:22px 24px;margin-bottom:16px;
+    background:
+      radial-gradient(700px 220px at 0% 0%,rgba(124,140,255,.20),transparent 65%),
+      radial-gradient(560px 220px at 100% 100%,rgba(53,224,240,.14),transparent 60%),
+      linear-gradient(140deg,rgba(17,25,43,.9),rgba(8,13,23,.86));
+    box-shadow:var(--shadow);
+  }
+  .hero::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(90deg,rgba(255,255,255,.05),transparent 40%);opacity:.5;
+  }
+  .hero-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;position:relative;z-index:1}
+  .status-orb{position:relative;width:46px;height:46px;flex:none;display:grid;place-items:center}
+  .status-orb i{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(52,211,153,.35);animation:halo 2.8s ease-out infinite}
+  .status-orb i:nth-child(2){animation-delay:1.4s}
+  .status-orb b{width:13px;height:13px;border-radius:50%;background:var(--green);box-shadow:0 0 18px rgba(52,211,153,.9)}
+  @keyframes halo{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+  .hero h2{margin:0;font-size:clamp(19px,2.3vw,25px);letter-spacing:-.03em;font-weight:740}
+  .hero p{margin:5px 0 0;color:var(--muted);font-size:12.5px;max-width:70ch;line-height:1.55}
+  .hero .tunnel{
+    margin-left:auto;display:flex;align-items:center;gap:8px;padding:8px 10px 8px 13px;border-radius:12px;
+    border:1px solid rgba(53,224,240,.22);background:rgba(53,224,240,.07);max-width:100%;
+  }
+  .hero .tunnel .lbl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);font-weight:800}
+  .hero .tunnel code{font-family:var(--mono);font-size:11.5px;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hero .tunnel button{border:1px solid var(--line);background:rgba(255,255,255,.05);border-radius:8px;padding:4px 8px;font-size:10px}
+
+  /* ---------------- KPIs ---------------- */
+  .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:16px}
+  .kpi{
+    position:relative;overflow:hidden;border:1px solid var(--line);border-radius:var(--r);
+    padding:15px 15px 13px;background:var(--panel);box-shadow:var(--shadow);
+    transition:transform .18s,border-color .18s;
+  }
+  .kpi:hover{transform:translateY(-2px);border-color:var(--line-2)}
+  .kpi::before{content:"";position:absolute;inset:0;background:linear-gradient(150deg,rgba(255,255,255,.05),transparent 48%);pointer-events:none}
+  .kpi .k{display:flex;align-items:center;gap:6px;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);font-weight:750}
+  .kpi .k svg{width:12px;height:12px;opacity:.85}
+  .kpi .v{margin-top:9px;font-size:25px;font-weight:760;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+  .kpi .v small{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:2px}
+  .kpi .s{margin-top:7px;font-size:10.5px;color:var(--dim);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kpi.hero-kpi{background:linear-gradient(150deg,rgba(124,140,255,.20),rgba(53,224,240,.06) 62%,transparent);border-color:rgba(124,140,255,.30)}
+  .kpi.green .v{color:#a7f3d0}
+
+  /* ---------------- layout ---------------- */
+  .grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+  .grid-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+  .col{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .card{
+    position:relative;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);
+    box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;min-width:0;
+  }
+  .card-head{display:flex;align-items:center;gap:10px;padding:14px 17px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .card-head h3{margin:0;font-size:12.5px;font-weight:720;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+  .card-head h3 svg{width:14px;height:14px;color:var(--muted)}
+  .card-head .hint{font-size:10.5px;color:var(--dim)}
+  .card-head .spacer{flex:1}
+  .card-body{padding:15px 17px}
+  .card-body.tight{padding:6px 17px 12px}
+
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(52,211,153,.15);flex:none}
+  .dot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(251,191,36,.15)}
+  .dot.bad{background:var(--red);box-shadow:0 0 0 3px rgba(251,113,133,.15)}
+  .dot.live{animation:pulse 2.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* ---------------- traffic ---------------- */
+  .seg{display:inline-flex;padding:3px;border-radius:9px;border:1px solid var(--line);background:rgba(0,0,0,.22);gap:2px}
+  .seg button{padding:4px 9px;border:0;border-radius:6px;background:transparent;color:var(--dim);font-size:10.5px;font-weight:650}
+  .seg button.on{background:rgba(255,255,255,.09);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.06) inset}
+  .chart-wrap{position:relative;height:190px;margin-top:2px}
+  .chart-wrap canvas{width:100%;height:100%;display:block}
+  .chart-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:12px;text-align:center;pointer-events:none}
+  .chart-tip{
+    position:absolute;pointer-events:none;opacity:0;transform:translate(-50%,-118%);transition:opacity .12s;
+    background:rgba(9,14,24,.96);border:1px solid var(--line-2);border-radius:9px;padding:6px 9px;
+    font-family:var(--mono);font-size:10.5px;white-space:nowrap;z-index:3;box-shadow:0 12px 28px -14px #000;
+  }
+  .legend{display:flex;align-items:center;gap:14px;margin-top:7px;font-size:10.5px;color:var(--dim);flex-wrap:wrap}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2.5px;margin-right:5px;vertical-align:-1px}
+  .legend b{color:var(--muted);font-weight:650;font-family:var(--mono)}
+
+  /* ---------------- feed ---------------- */
+  .feed{max-height:300px;overflow:auto;scrollbar-width:thin}
+  .feed-row{
+    display:grid;grid-template-columns:60px minmax(0,1fr) 52px 68px 62px;gap:9px;align-items:center;
+    padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:11.5px;
+  }
+  .feed-row:last-child{border-bottom:0}
+  .feed-head{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:750;padding:8px 0 6px;border-bottom:1px solid var(--line)}
+  .feed-row .t{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .feed-row .ep{min-width:0}
+  .feed-row .ep b{display:block;font-weight:600;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .feed-row .ep small{display:block;color:var(--dim);font-size:10px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .code{display:inline-block;min-width:42px;text-align:center;padding:2px 6px;border-radius:6px;font-family:var(--mono);font-size:10px;font-weight:750}
+  .code.ok{color:#a7f3d0;background:rgba(52,211,153,.10)}
+  .code.bad{color:#fecdd3;background:rgba(251,113,133,.11)}
+  .code.warn{color:#fde68a;background:rgba(251,191,36,.10)}
+  .feed-row .num{text-align:right;font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .feed-row .num b{color:var(--text);font-weight:650}
+  .empty{padding:26px 4px;text-align:center;color:var(--dim);font-size:12px;line-height:1.6}
+
+  /* ---------------- system ---------------- */
+  .sys-top{display:flex;align-items:center;gap:10px;margin-bottom:13px;flex-wrap:wrap}
+  .sys-top .host{font-family:var(--mono);font-size:12px;font-weight:650}
+  .sys-top .kern{font-size:10.5px;color:var(--dim)}
+  .sys-top .spacer{flex:1}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:9.5px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;border:1px solid transparent}
+  .badge.healthy,.badge.in_use,.badge.ok{color:#a7f3d0;background:rgba(52,211,153,.10);border-color:rgba(52,211,153,.22)}
+  .badge.cooldown,.badge.draining,.badge.warn{color:#fde68a;background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.22)}
+  .badge.starting,.badge.bad{color:#fecdd3;background:rgba(251,113,133,.10);border-color:rgba(251,113,133,.22)}
+
+  .gauges{display:grid;gap:12px;margin-bottom:14px}
+  .gauge .g-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}
+  .gauge .g-name{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:750}
+  .gauge .g-val{font-family:var(--mono);font-size:12.5px;font-weight:700}
+  .gauge .g-val small{font-size:10px;color:var(--dim);font-weight:500;margin-left:4px}
+  .meter{height:7px;border-radius:99px;background:rgba(255,255,255,.06);overflow:hidden;position:relative}
+  .meter i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--indigo),var(--cyan));transition:width .7s cubic-bezier(.2,.8,.2,1),background .3s}
+  .meter.amber i{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+  .meter.red i{background:linear-gradient(90deg,#f43f5e,#fb7185)}
+  .spark{height:44px;margin:8px 0 2px}
+  .spark canvas{width:100%;height:100%;display:block}
+
+  .kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kv div{border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:8px 10px;background:rgba(0,0,0,.16);min-width:0}
+  .kv span{display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .kv b{display:block;margin-top:3px;font-family:var(--mono);font-size:11.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ---------------- egress ---------------- */
+  .egress{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+  .egress .ip{font-family:var(--mono);font-size:clamp(17px,2vw,22px);font-weight:650;letter-spacing:-.035em;overflow-wrap:anywhere;line-height:1.15}
+  .egress .meta{font-size:10.5px;color:var(--dim);margin-top:5px;line-height:1.5}
+  .egress .right{margin-left:auto;text-align:right}
+  .egress .right b{display:block;font-family:var(--mono);font-size:20px;font-weight:760}
+  .egress .right span{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .btn-rotate{
+    display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:0;border-radius:11px;
+    font-size:12px;font-weight:750;color:#050810;background:linear-gradient(135deg,#9aa6ff,#35e0f0);
+    box-shadow:0 14px 32px -14px rgba(53,224,240,.8);transition:.17s;white-space:nowrap;
+  }
+  .btn-rotate:hover{transform:translateY(-1px);filter:brightness(1.06)}
+  .btn-rotate:disabled{opacity:.6;cursor:wait;transform:none}
+  .btn-rotate svg{width:14px;height:14px}
   .spin{animation:spin 1s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .exits{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
-  .exit{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+  .exits{margin-top:12px;border-top:1px solid var(--line);padding-top:4px}
+  .exit{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:9px;padding:8px 1px;border-bottom:1px solid rgba(255,255,255,.035);font-size:11px}
   .exit:last-child{border-bottom:0}
-  .exit .id{font-family:var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
-  .exit .eip{font-family:var(--mono);font-size:11.5px;color:var(--text);overflow-wrap:anywhere}
-  .exit .served{color:var(--dim);font-size:11px;white-space:nowrap}
-  .badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid transparent}
-  .badge.healthy,.badge.in_use{color:var(--green);background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.25)}
-  .badge.cooldown,.badge.draining{color:var(--amber);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.25)}
-  .badge.starting{color:var(--muted);background:rgba(255,255,255,.06)}
+  .exit .eip{font-family:var(--mono);font-size:11px;overflow-wrap:anywhere}
+  .exit .id{font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .exit .side{text-align:right}
+  .exit .served{font-size:9.5px;color:var(--dim);margin-top:3px}
 
-  /* chart */
-  .chart-wrap{position:relative;height:172px;margin-top:4px}
-  canvas{width:100%;height:100%;display:block}
-  .chart-legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:8px}
-  .chart-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-  .chart-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:12px}
-
-  /* table / feed */
-  .feed{max-height:330px;overflow:auto}
-  .row{display:grid;grid-template-columns:64px minmax(0,1fr) 58px 66px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:12px}
-  .row:last-child{border-bottom:0}
-  .row .t{color:var(--dim);font-family:var(--mono);font-size:11px}
-  .row .ep{font-weight:600;font-size:12px}
-  .row .ep small{display:block;color:var(--dim);font-weight:400;font-size:10.5px;margin-top:1px}
-  .row .ms{color:var(--muted);text-align:right;font-family:var(--mono);font-size:11px}
-  .code{display:inline-block;min-width:44px;text-align:center;padding:2px 6px;border-radius:7px;font-family:var(--mono);font-size:10.5px;font-weight:700}
-  .code.ok{color:var(--green);background:rgba(52,211,153,.1)}
-  .code.bad{color:var(--red);background:rgba(248,113,113,.1)}
-  .empty{padding:22px 4px;text-align:center;color:var(--dim);font-size:12.5px}
-
-  /* models */
-  .model{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+  /* ---------------- models ---------------- */
+  .model{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
   .model:last-child{border-bottom:0}
-  .model .n{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .model .c{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .bar{grid-column:1/-1;height:5px;border-radius:99px;background:rgba(255,255,255,.06);overflow:hidden}
-  .bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--cyan));transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .model .n{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .model .c{font-size:10px;color:var(--muted);font-family:var(--mono)}
+  .bar{grid-column:1/-1;height:4px;border-radius:99px;background:rgba(255,255,255,.055);overflow:hidden;margin-top:3px}
+  .bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--indigo),var(--cyan));transition:width .6s ease}
 
-  /* keys */
-  .keyform{display:flex;gap:8px;margin-bottom:12px}
-  .keyform input{flex:1;min-width:0;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:var(--text);font-size:12.5px;outline:none}
-  .keyform input:focus{border-color:rgba(139,92,246,.6);box-shadow:0 0 0 3px rgba(139,92,246,.15)}
-  .keyform button{padding:9px 13px;border:0;border-radius:10px;background:rgba(139,92,246,.9);color:#fff;font-weight:650;font-size:12px}
-  .keyform button:hover{background:rgba(139,92,246,1)}
-  .key{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.045);align-items:center}
+  /* ---------------- keys / quickstart ---------------- */
+  .keyform{display:flex;gap:7px;margin-bottom:11px}
+  .keyform input{flex:1;min-width:0;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:var(--text);font-size:12px;outline:none}
+  .keyform input:focus{border-color:rgba(124,140,255,.6);box-shadow:0 0 0 3px rgba(124,140,255,.13)}
+  .keyform button{padding:9px 13px;border:0;border-radius:10px;background:rgba(124,140,255,.92);color:#fff;font-weight:700;font-size:11.5px}
+  .keyform button:hover{background:#8b97ff}
+  .key{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04);align-items:center}
   .key:last-child{border-bottom:0}
-  .key .lbl{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .key .pfx{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
-  .key .sub{font-size:10.5px;color:var(--dim);margin-top:2px}
-  .key .acts{display:flex;gap:6px}
-  .mini{padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:10.5px;color:var(--muted);transition:.15s}
+  .key .lbl{font-size:11.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .key .pfx{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:1px}
+  .key .sub{font-size:9.5px;color:var(--dim);margin-top:2px}
+  .mini{padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:10px;color:var(--muted);transition:.15s}
   .mini:hover{background:rgba(255,255,255,.09);color:var(--text)}
-  .mini.danger{color:#fca5a5;border-color:rgba(248,113,113,.28)}
-  .mini.danger:hover{background:rgba(248,113,113,.14)}
-  .mini.confirm{color:#0a0f18;background:var(--red);border-color:var(--red);font-weight:700}
+  .mini.danger{color:#fecdd3;border-color:rgba(251,113,133,.26)}
+  .mini.danger:hover{background:rgba(251,113,133,.14)}
+  .mini.confirm{color:#0a0f18;background:var(--red);border-color:var(--red);font-weight:750}
 
-  /* snippet */
-  pre.snippet{margin:0;padding:12px 13px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid var(--line);overflow:auto;font-family:var(--mono);font-size:11.5px;line-height:1.6;color:#c7d2e5}
-  pre.snippet .tok{color:var(--cyan)}
-  .copy-line{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px;color:var(--dim);font-size:11px}
+  .copyline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;color:var(--dim);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+  pre.snippet{margin:0;padding:11px 12px;border-radius:11px;background:rgba(0,0,0,.40);border:1px solid var(--line);overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.65;color:#c8d4e8;white-space:pre}
+  pre.snippet::-webkit-scrollbar{height:6px}
+  pre.snippet::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:9px}
 
-  /* rotation history */
-  .rot{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)}
-  .rot:last-child{border-bottom:0}
-  .rot .arrow{color:var(--violet)}
-  .rot time{margin-left:auto;color:var(--dim);font-family:var(--mono);font-size:10.5px}
-
-  /* footer */
-  footer{border-top:1px solid var(--line);padding:18px 0 30px;color:var(--dim);font-size:11.5px}
-  footer .shell{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-
-  /* toast + modal */
+  /* ---------------- footer / toast / modal ---------------- */
+  footer{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:12px;flex-wrap:wrap;align-items:center;color:var(--dim);font-size:10.5px}
+  footer .spacer{flex:1}
   .toasts{position:fixed;right:18px;bottom:18px;z-index:80;display:flex;flex-direction:column;gap:8px;max-width:min(92vw,380px)}
-  .toast{padding:11px 14px;border-radius:12px;border:1px solid var(--line-strong);background:rgba(14,22,38,.96);box-shadow:0 18px 40px -16px #000;font-size:12.5px;animation:slide .25s ease-out}
+  .toast{padding:10px 13px;border-radius:11px;border:1px solid var(--line-2);background:rgba(11,18,32,.97);box-shadow:0 18px 40px -16px #000;font-size:12px;animation:slide .22s ease-out}
   .toast.ok{border-color:rgba(52,211,153,.4)}
-  .toast.err{border-color:rgba(248,113,113,.45)}
-  .toast b{display:block;font-size:12px;margin-bottom:2px}
+  .toast.err{border-color:rgba(251,113,133,.45)}
+  .toast b{display:block;font-size:11.5px;margin-bottom:2px}
   @keyframes slide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  .overlay{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:20px;background:rgba(3,6,12,.72);backdrop-filter:blur(6px)}
+  .overlay{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:20px;background:rgba(3,6,12,.74);backdrop-filter:blur(7px)}
   .overlay.show{display:grid}
-  .modal{width:min(520px,100%);border-radius:20px;border:1px solid var(--line-strong);background:linear-gradient(160deg,#101a2d,#0a1120);box-shadow:0 40px 90px -30px #000;padding:22px}
-  .modal h4{margin:0 0 6px;font-size:16px}
-  .modal p{margin:0 0 14px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .modal{width:min(520px,100%);border-radius:20px;border:1px solid var(--line-2);background:linear-gradient(160deg,#111b2e,#0a1120);box-shadow:0 40px 90px -30px #000;padding:22px}
+  .modal h4{margin:0 0 6px;font-size:16px;letter-spacing:-.02em}
+  .modal p{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.55}
   .modal .secret{display:flex;gap:8px;margin:12px 0}
-  .modal .secret code{flex:1;min-width:0;padding:12px;border-radius:12px;border:1px dashed rgba(139,92,246,.5);background:rgba(139,92,246,.08);font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
-  .modal .row-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
-  .modal .warn{color:var(--amber);font-size:11.5px;margin-top:10px}
-  .gate{position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:20px;background:var(--bg)}
-  .gate.show{display:grid}
-  .gate .box{width:min(420px,100%);text-align:center}
-  .gate h3{margin:0 0 6px;font-size:20px}
-  .gate p{margin:0 0 16px;color:var(--muted);font-size:13px}
-  .gate input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.35);color:var(--text);font-family:var(--mono);font-size:13px;outline:none}
-  .gate input:focus{border-color:rgba(139,92,246,.6)}
-  .gate button{margin-top:10px;width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#080c14;font-weight:750}
+  .modal .secret code{flex:1;min-width:0;padding:11px;border-radius:11px;border:1px dashed rgba(124,140,255,.5);background:rgba(124,140,255,.08);font-family:var(--mono);font-size:11.5px;overflow-wrap:anywhere}
+  .modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+  .modal .warn{color:var(--amber);font-size:11px;margin-top:10px}
 
-  .skeleton{color:transparent!important;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06),rgba(255,255,255,.12),rgba(255,255,255,.06));background-size:200% 100%;animation:shimmer 1.4s infinite}
+  .skeleton{color:transparent!important;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.11),rgba(255,255,255,.05));background-size:200% 100%;animation:shimmer 1.5s infinite}
   @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
+  /* ---------------- responsive ---------------- */
+  @media (max-width:1280px){ .kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
   @media (max-width:1080px){
-    .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
-    .grid{grid-template-columns:1fr}
+    .app{flex-direction:column}
+    .rail{width:100%;height:auto;position:static;flex-direction:row;align-items:center;gap:14px;padding:12px 16px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
+    .brand{flex:none}
+    .nav{flex-direction:row;gap:2px;flex:1}
+    .nav a{padding:7px 9px}
+    .nav a span.lbl{display:none}
+    .nav .tag{display:none}
+    .rail-card{display:none}
+    .rail-foot{margin-left:auto;flex:none}
+    .main{padding:18px 18px 56px}
+    .grid,.grid-2{grid-template-columns:1fr}
   }
   @media (max-width:640px){
-    .shell{width:min(100% - 24px,1240px)}
-    .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .topbar{min-height:64px;gap:10px}
-    .brand p{display:none}
-    .hide-sm{display:none!important}
-    .tunnel code{max-width:60vw}
-    .row{grid-template-columns:52px minmax(0,1fr) 52px}
-    .row .ms{display:none}
+    .main{padding:14px 12px 48px}
+    .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .kpi .v{font-size:21px}
+    .hero{padding:17px 16px}
+    .hero .tunnel{margin-left:0;width:100%}
+    .hero .tunnel code{max-width:58vw}
+    .topbar h1{font-size:19px}
+    .clock{display:none}
+    .feed-row{grid-template-columns:54px minmax(0,1fr) 46px 58px}
+    .feed-row .num.dur{display:none}
+    .kv{grid-template-columns:1fr 1fr}
   }
-  @media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
-<header>
-  <div class="shell topbar">
+<div class="app">
+
+  <aside class="rail">
     <div class="brand">
       <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5"/><path d="M12 12v10"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5"/><path d="M12 12v10"/></svg>
       </div>
-      <div class="brand-text">
-        <h1>OpenCode Proxy</h1>
-        <p>WARP rotating gateway · free model bridge</p>
+      <div>
+        <strong>OpenCode Proxy</strong>
+        <span>WARP rotating gateway</span>
       </div>
     </div>
-    <div class="spacer"></div>
-    <span class="pill" id="statusPill"><span class="dot" id="statusDot"></span><span id="statusText">Connecting</span></span>
-    <span class="pill hide-sm">Uptime <b class="mono" id="uptime" style="color:var(--text);font-weight:600">—</b></span>
-    <button class="icon-btn" id="refreshBtn" title="Refresh now" aria-label="Refresh now">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
-    </button>
-  </div>
-</header>
 
-<main class="shell">
-  <div class="hero">
-    <div>
-      <h2>Control room</h2>
-      <p>Live traffic, WARP egress exits, request rotation and API access — everything in one place.</p>
-    </div>
-    <div class="tunnel" id="tunnelChip" title="Click to copy the public URL">
-      <span class="label">Tunnel</span>
-      <code id="tunnelUrl">not connected</code>
-      <button class="mini" id="copyTunnel" aria-label="Copy tunnel URL">Copy</button>
-    </div>
-  </div>
+    <nav class="nav" aria-label="Sections">
+      <a href="#overview" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/></svg>
+        <span class="lbl">Overview</span>
+      </a>
+      <a href="#traffic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 5-8 4 3"/><path d="M3 21h18"/></svg>
+        <span class="lbl">Traffic</span><span class="tag">live</span>
+      </a>
+      <a href="#system">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.8"/><rect x="3" y="13" width="18" height="7" rx="1.8"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+        <span class="lbl">Host</span>
+      </a>
+      <a href="#egress">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z"/></svg>
+        <span class="lbl">Egress</span>
+      </a>
+      <a href="#access">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M3 8l9 6 9-6"/></svg>
+        <span class="lbl">Access</span>
+      </a>
+    </nav>
 
-  <section class="stats" aria-label="Key metrics">
-    <div class="stat accent">
-      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Requests</div>
-      <div class="v mono" id="statRequests">—</div>
-      <div class="s" id="statRequestsSub">since start</div>
+    <div class="rail-card">
+      <div class="top"><span class="dot live" id="railDot"></span>Egress IP</div>
+      <div class="ip" id="railIp">—</div>
+      <div class="sub" id="railSub">WARP pool connecting…</div>
     </div>
-    <div class="stat">
-      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m20 6-11 11-5-5"/></svg>Success rate</div>
-      <div class="v mono" id="statSuccess">—</div>
-      <div class="s" id="statSuccessSub">all time</div>
-    </div>
-    <div class="stat">
-      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>Active flows</div>
-      <div class="v mono" id="statFlows">—</div>
-      <div class="s">streaming now</div>
-    </div>
-    <div class="stat">
-      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Free models</div>
-      <div class="v mono" id="statModels">—</div>
-      <div class="s">discovered upstream</div>
-    </div>
-    <div class="stat">
-      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Last hour</div>
-      <div class="v mono" id="statHour">—</div>
-      <div class="s" id="statHourSub">requests</div>
-    </div>
-    <div class="stat">
-      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>Rotations</div>
-      <div class="v mono" id="statRotations">—</div>
-      <div class="s">IP swaps performed</div>
-    </div>
-  </section>
 
-  <div class="grid">
-    <div class="col">
-      <section class="panel" aria-labelledby="egressTitle">
-        <div class="panel-head">
-          <h3 id="egressTitle">WARP egress</h3>
-          <span class="hint" id="poolHint">checking pool…</span>
-          <span class="spacer"></span>
-          <button class="btn-primary" id="rotateBtn">
-            <svg id="rotateIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
-            <span id="rotateLabel">New IP</span>
-          </button>
+    <div class="rail-foot">
+      <button class="logout" id="logoutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Sign out
+      </button>
+      <span class="version">v1.0</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-inner">
+
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">Control room</div>
+          <h1>Gateway overview</h1>
         </div>
-        <div class="panel-body">
-          <div class="egress">
-            <div style="min-width:0;flex:1">
-              <div class="ip" id="egressIp">—</div>
-              <div class="meta" id="egressMeta">Resolving WARP egress…</div>
-            </div>
-            <div style="text-align:right">
-              <div class="mono" id="poolHealthy" style="font-size:20px;font-weight:700">—</div>
-              <div class="meta">healthy exits</div>
-            </div>
+        <div class="spacer"></div>
+        <span class="clock" id="clock">—</span>
+        <button class="btn" id="refreshBtn" title="Refresh now">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+          Refresh
+        </button>
+      </header>
+
+      <section class="hero" id="overview">
+        <div class="hero-row">
+          <div class="status-orb" aria-hidden="true"><i></i><i></i><b id="orb"></b></div>
+          <div>
+            <h2 id="heroTitle">Checking gateway…</h2>
+            <p id="heroSub">Live traffic, WARP egress rotation and host health for the OpenCode free-model bridge.</p>
           </div>
-          <div class="exits" id="exitList"></div>
-          <div id="rotHistory" style="margin-top:10px"></div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="trafficTitle">
-        <div class="panel-head">
-          <h3 id="trafficTitle">Traffic</h3>
-          <span class="hint">requests per minute · last 30 min</span>
-          <span class="spacer"></span>
-          <span class="pill" style="padding:4px 9px"><span class="dot" id="liveDot"></span>live</span>
-        </div>
-        <div class="panel-body">
-          <div class="chart-wrap">
-            <canvas id="chart" aria-label="Requests per minute chart"></canvas>
-            <div class="chart-empty" id="chartEmpty">Waiting for traffic…</div>
+          <div class="tunnel" id="tunnelChip" title="Click to copy the public URL">
+            <span class="lbl">Public</span>
+            <code id="tunnelUrl">connecting…</code>
+            <button class="btn small" id="copyTunnel">Copy</button>
           </div>
-          <div class="chart-legend"><span><i style="background:linear-gradient(90deg,#8b5cf6,#22d3ee)"></i>successful</span><span><i style="background:#f87171"></i>errors</span></div>
         </div>
       </section>
 
-      <section class="panel" aria-labelledby="feedTitle">
-        <div class="panel-head">
-          <h3 id="feedTitle">Live requests</h3>
-          <span class="hint">most recent first</span>
+      <section class="kpis" aria-label="Key metrics">
+        <div class="kpi hero-kpi">
+          <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Requests</div>
+          <div class="v mono" id="kRequests">—</div>
+          <div class="s" id="kRequestsSub">since start</div>
         </div>
-        <div class="panel-body tight feed" id="feed"></div>
+        <div class="kpi green">
+          <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg>Success</div>
+          <div class="v mono" id="kSuccess">—</div>
+          <div class="s" id="kSuccessSub">all time</div>
+        </div>
+        <div class="kpi">
+          <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>Avg tok/s</div>
+          <div class="v mono" id="kTps">—</div>
+          <div class="s" id="kTpsSub">generation speed</div>
+        </div>
+        <div class="kpi">
+          <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/></svg>Tokens out</div>
+          <div class="v mono" id="kTokens">—</div>
+          <div class="s" id="kTokensSub">last 60 min</div>
+        </div>
+        <div class="kpi">
+          <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>Rotations</div>
+          <div class="v mono" id="kRotations">—</div>
+          <div class="s">IP swaps performed</div>
+        </div>
+        <div class="kpi">
+          <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Models</div>
+          <div class="v mono" id="kModels">—</div>
+          <div class="s" id="kModelsSub">free · discovered</div>
+        </div>
       </section>
+
+      <div class="grid">
+        <div class="col">
+          <section class="card" id="traffic" aria-labelledby="trafficTitle">
+            <div class="card-head">
+              <h3 id="trafficTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 5-8 4 3"/><path d="M3 21h18"/></svg>
+                Traffic
+              </h3>
+              <span class="hint">last 30 minutes</span>
+              <span class="spacer"></span>
+              <div class="seg" role="group" aria-label="Chart metric">
+                <button class="on" data-mode="requests">Requests</button>
+                <button data-mode="tokens">Tokens</button>
+              </div>
+              <span class="badge healthy"><span class="dot live"></span>live</span>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap" id="chartWrap">
+                <canvas id="trafficChart" aria-label="Traffic chart"></canvas>
+                <div class="chart-tip" id="chartTip"></div>
+                <div class="chart-empty" id="chartEmpty">Waiting for traffic…</div>
+              </div>
+              <div class="legend">
+                <span><i style="background:linear-gradient(90deg,#7c8cff,#35e0f0)"></i><b id="legendOk">0</b> successful</span>
+                <span><i style="background:#fb7185"></i><b id="legendErr">0</b> errors</span>
+                <span><i style="background:rgba(124,140,255,.28)"></i><b id="legendTotal">0</b> total · 30m</span>
+                <span id="legendTps" style="margin-left:auto"></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="feedTitle">
+            <div class="card-head">
+              <h3 id="feedTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+                Live requests
+              </h3>
+              <span class="hint" id="feedHint">most recent first</span>
+              <span class="spacer"></span>
+              <span class="hint mono" id="feedFlow">0 active</span>
+            </div>
+            <div class="card-body tight">
+              <div class="feed" id="feed"></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="col">
+          <section class="card" id="system" aria-labelledby="systemTitle">
+            <div class="card-head">
+              <h3 id="systemTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.8"/><rect x="3" y="13" width="18" height="7" rx="1.8"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+                Host health
+              </h3>
+              <span class="hint" id="sysHint">node_exporter</span>
+              <span class="spacer"></span>
+              <span class="badge ok" id="sysBadge">live</span>
+            </div>
+            <div class="card-body">
+              <div class="sys-top">
+                <span class="host" id="sysHost">—</span>
+                <span class="kern" id="sysKernel"></span>
+                <span class="spacer"></span>
+                <span class="hint mono" id="sysUptime"></span>
+              </div>
+
+              <div class="gauges">
+                <div class="gauge">
+                  <div class="g-head"><span class="g-name">CPU</span><span class="g-val" id="cpuVal">—</span></div>
+                  <div class="meter" id="cpuMeter"><i id="cpuBar"></i></div>
+                  <div class="spark"><canvas id="cpuChart" aria-label="CPU history"></canvas></div>
+                  <div class="g-head" style="margin:2px 0 0"><span class="hint mono" id="cpuLoad">load —</span><span class="hint" id="cpuCores"></span></div>
+                </div>
+                <div class="gauge">
+                  <div class="g-head"><span class="g-name">Memory</span><span class="g-val" id="memVal">—</span></div>
+                  <div class="meter" id="memMeter"><i id="memBar"></i></div>
+                  <div class="g-head" style="margin:5px 0 0"><span class="hint mono" id="memDetail">—</span><span class="hint mono" id="swapDetail"></span></div>
+                </div>
+                <div class="gauge">
+                  <div class="g-head"><span class="g-name">Disk</span><span class="g-val" id="diskVal">—</span></div>
+                  <div class="meter" id="diskMeter"><i id="diskBar"></i></div>
+                  <div class="g-head" style="margin:5px 0 0"><span class="hint mono" id="diskDetail">—</span><span class="hint mono" id="diskMount"></span></div>
+                </div>
+              </div>
+
+              <div class="kv">
+                <div><span>Network in</span><b id="netIn">—</b></div>
+                <div><span>Network out</span><b id="netOut">—</b></div>
+                <div><span>Processes</span><b id="procs">—</b></div>
+                <div><span>Open files</span><b id="fds">—</b></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="egress" aria-labelledby="egressTitle">
+            <div class="card-head">
+              <h3 id="egressTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z"/></svg>
+                WARP egress
+              </h3>
+              <span class="hint" id="poolHint">checking…</span>
+              <span class="spacer"></span>
+              <button class="btn-rotate" id="rotateBtn">
+                <svg id="rotateIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+                <span id="rotateLabel">New IP</span>
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="egress">
+                <div style="min-width:0;flex:1">
+                  <div class="ip" id="egressIp">—</div>
+                  <div class="meta" id="egressMeta">Resolving WARP egress…</div>
+                </div>
+                <div class="right">
+                  <b id="poolHealthy">—</b>
+                  <span>healthy exits</span>
+                </div>
+              </div>
+              <div class="exits" id="exitList"></div>
+              <div id="rotHistory" style="margin-top:9px"></div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="modelsTitle">
+            <div class="card-head">
+              <h3 id="modelsTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg>
+                Model usage
+              </h3>
+              <span class="hint" id="modelsHint">—</span>
+            </div>
+            <div class="card-body tight" id="modelList"></div>
+          </section>
+        </div>
+      </div>
+
+      <div class="grid-2" id="access">
+        <section class="card" aria-labelledby="keysTitle">
+          <div class="card-head">
+            <h3 id="keysTitle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3M17 6l3 3M14 9l3 3"/></svg>
+              API keys
+            </h3>
+            <span class="hint" id="keysHint">—</span>
+          </div>
+          <div class="card-body">
+            <form class="keyform" id="keyForm">
+              <input id="keyLabel" placeholder="Key label (e.g. laptop)" maxlength="64" autocomplete="off">
+              <button type="submit">Generate</button>
+            </form>
+            <div id="keyList"></div>
+            <div class="empty" id="keyEmpty" hidden>No generated keys yet. The master key in <span class="mono">PROXY_API_KEY</span> still works.</div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="quickTitle">
+          <div class="card-head">
+            <h3 id="quickTitle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7-5 5 5 5M16 7l5 5-5 5"/></svg>
+              Quick start
+            </h3>
+            <span class="hint">OpenAI compatible · same URL</span>
+          </div>
+          <div class="card-body">
+            <div class="copyline"><span>Base URL</span><button class="mini" id="copyBase">Copy</button></div>
+            <pre class="snippet" id="baseUrl">…</pre>
+            <div class="copyline" style="margin-top:12px"><span>Test request</span><button class="mini" id="copyCurl">Copy</button></div>
+            <pre class="snippet" id="curlSnippet">…</pre>
+          </div>
+        </section>
+      </div>
+
+      <footer>
+        <span id="footPool">WARP pool: —</span>
+        <span>·</span>
+        <span id="footSecurity">security: —</span>
+        <span class="spacer"></span>
+        <span class="mono" id="footStamp">—</span>
+      </footer>
     </div>
-
-    <div class="col">
-      <section class="panel" aria-labelledby="keysTitle">
-        <div class="panel-head">
-          <h3 id="keysTitle">API keys</h3>
-          <span class="hint" id="keysHint">—</span>
-        </div>
-        <div class="panel-body">
-          <form class="keyform" id="keyForm">
-            <input id="keyLabel" placeholder="Key label (e.g. laptop)" maxlength="64" autocomplete="off">
-            <button type="submit">Generate</button>
-          </form>
-          <div id="keyList"></div>
-          <div class="empty" id="keyEmpty" hidden>No generated keys yet. The master key from <span class="mono">PROXY_API_KEY</span> still works.</div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="modelsTitle">
-        <div class="panel-head">
-          <h3 id="modelsTitle">Model usage</h3>
-          <span class="hint" id="modelsHint">—</span>
-        </div>
-        <div class="panel-body tight" id="modelList"></div>
-      </section>
-
-      <section class="panel" aria-labelledby="quickTitle">
-        <div class="panel-head">
-          <h3 id="quickTitle">Quick start</h3>
-          <span class="hint">OpenAI compatible</span>
-        </div>
-        <div class="panel-body">
-          <div class="copy-line"><span>Base URL</span><button class="mini" id="copyBase">Copy</button></div>
-          <pre class="snippet" id="baseUrl">…</pre>
-          <div class="copy-line" style="margin-top:12px"><span>Test request</span><button class="mini" id="copyCurl">Copy</button></div>
-          <pre class="snippet" id="curlSnippet">…</pre>
-        </div>
-      </section>
-    </div>
-  </div>
-</main>
-
-<footer>
-  <div class="shell">
-    <span>OpenCode Proxy</span>
-    <span>·</span>
-    <span id="footPool">WARP pool: —</span>
-    <span>·</span>
-    <span id="footSecurity">security: —</span>
-    <span class="spacer"></span>
-    <span class="mono" id="footStamp">—</span>
-  </div>
-</footer>
+  </main>
+</div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <div class="overlay" id="keyModal" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
   <div class="modal">
     <h4 id="keyModalTitle">API key created</h4>
-    <p>Copy it now — for security only a hash is stored, so it cannot be shown again.</p>
+    <p>Copy it now — only a hash is stored, so it cannot be shown again.</p>
     <div class="secret"><code id="newKeyValue">—</code></div>
-    <div class="row-actions">
-      <button class="icon-btn" id="copyNewKey">Copy key</button>
-      <button class="icon-btn" id="closeKeyModal" style="background:rgba(139,92,246,.85);border-color:transparent;color:#fff">Done</button>
+    <div class="acts">
+      <button class="btn" id="copyNewKey">Copy key</button>
+      <button class="btn" id="closeKeyModal" style="background:rgba(124,140,255,.9);border-color:transparent;color:#fff">Done</button>
     </div>
-    <p class="warn">Use it as <span class="mono">Authorization: Bearer &lt;key&gt;</span> or <span class="mono">x-api-key</span>.</p>
+    <p class="warn">Send it as <span class="mono">Authorization: Bearer &lt;key&gt;</span> or <span class="mono">x-api-key</span>.</p>
   </div>
 </div>
 
-<div class="gate" id="gate">
-  <div class="box">
-    <h3>Dashboard locked</h3>
-    <p>Enter your proxy API key to open the control room.</p>
-    <input id="gateKey" type="password" placeholder="API key" autocomplete="current-password">
-    <button id="gateBtn">Unlock</button>
-  </div>
-</div>
-
-<script>
+<script nonce="{{ nonce }}">
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
   const nf = new Intl.NumberFormat();
-  const state = { overview: null, keys: [], uptimeBase: null, uptimeAt: 0, loading: false, hidden: false };
+  const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+  const state = {
+    overview: null,
+    keys: [],
+    uptimeBase: null,
+    uptimeAt: 0,
+    loading: false,
+    hidden: false,
+    chartMode: "requests",
+    series: [],
+    cpuHistory: [],
+    sysUptimeBase: null,
+    sysUptimeAt: 0,
+  };
 
   /* ---------- helpers ---------- */
-  const fmt = (n) => (typeof n === "number" && isFinite(n) ? nf.format(Math.round(n)) : "—");
+  const num = (n) => (typeof n === "number" && isFinite(n) ? nf.format(Math.round(n)) : "—");
   const pct = (n) => (typeof n === "number" && isFinite(n) ? n.toFixed(1) + "%" : "—");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const setText = (id, value) => { const el = $(id); if (el) el.textContent = value; };
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  function bytes(v) {
+    if (!isFinite(v) || v <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let i = 0, n = v;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return (n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)) + " " + units[i];
+  }
+  function rate(v) { return bytes(v) + "/s"; }
   function dur(seconds) {
     if (!isFinite(seconds) || seconds < 0) return "—";
     const d = Math.floor(seconds / 86400), h = Math.floor((seconds % 86400) / 3600),
@@ -450,21 +724,20 @@
     return `${Math.floor(diff / 86400)}d ago`;
   }
   const clock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  function setText(id, value) { const el = $(id); if (el) el.textContent = value; }
+  const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
   function toast(title, message, kind = "ok") {
     const el = document.createElement("div");
     el.className = "toast " + kind;
     el.innerHTML = `<b>${esc(title)}</b>${esc(message)}`;
     $("toasts").appendChild(el);
-    setTimeout(() => { el.style.opacity = "0"; el.style.transform = "translateY(6px)"; setTimeout(() => el.remove(), 250); }, 4200);
+    setTimeout(() => { el.style.opacity = "0"; el.style.transform = "translateY(6px)"; setTimeout(() => el.remove(), 240); }, 4200);
   }
 
   async function copy(text, label = "Copied") {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
       const ta = document.createElement("textarea");
       ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
       document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
@@ -474,76 +747,222 @@
 
   /* ---------- data ---------- */
   async function api(path, options = {}) {
-    const res = await fetch(path, { cache: "no-store", credentials: "same-origin", ...options });
-    if (res.status === 401) { $("gate").classList.add("show"); throw new Error("unauthorized"); }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const opts = { cache: "no-store", credentials: "same-origin", ...options };
+    opts.headers = Object.assign({}, options.headers || {});
+    if ((opts.method || "GET") !== "GET") opts.headers["X-CSRF-Token"] = csrf;
+    const res = await fetch(path, opts);
+    if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) { location.href = "/login"; throw new Error("unauthorized"); }
+    }
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try { const body = await res.json(); detail = body.detail || (body.error && body.error.message) || detail; } catch {}
+      throw new Error(detail);
+    }
     return res.json();
   }
 
+  /* ---------- render: overview ---------- */
   function applyOverview(data) {
     state.overview = data;
     state.uptimeBase = data.uptime_seconds;
     state.uptimeAt = Date.now();
 
     const totals = data.totals || {};
-    const lastHour = totals.last_hour || {};
-    setText("statRequests", fmt(totals.requests));
-    setText("statRequestsSub", `${fmt(totals.successful)} ok · ${fmt(totals.failed)} failed`);
-    setText("statSuccess", pct(totals.success_rate));
-    setText("statSuccessSub", `${fmt(totals.rate_limited)} rate limited`);
-    setText("statFlows", fmt(totals.active_flows));
-    setText("statModels", fmt((data.models || {}).count));
-    setText("statHour", fmt(lastHour.requests));
-    setText("statHourSub", `${fmt(lastHour.errors)} errors · 60 min`);
-    setText("statRotations", fmt((data.rotations || {}).count));
-
+    const hour = totals.last_hour || {};
+    const tokens = data.tokens || {};
     const pool = data.pool || {};
+    const system = data.system || {};
     const ips = (data.egress || {}).ips || [];
+
+    setText("kRequests", num(totals.requests));
+    setText("kRequestsSub", `${num(totals.successful)} ok · ${num(totals.failed)} failed`);
+    setText("kSuccess", pct(totals.success_rate));
+    setText("kSuccessSub", `${num(totals.rate_limited)} rate limited`);
+    setText("kTps", tokens.avg_tps ? tokens.avg_tps.toFixed(1) : "—");
+    setText("kTpsSub", `${num(hour.tokens_out || 0)} tokens · 60m`);
+    setText("kTokens", num(hour.tokens_out || 0));
+    setText("kTokensSub", `${num(tokens.tokens_out || 0)} all time`);
+    setText("kRotations", num((data.rotations || {}).count));
+    setText("kModels", num((data.models || {}).count));
+    setText("kModelsSub", `${num(totals.active_flows)} active flows`);
+
+    const online = !!pool.online && (pool.healthy || 0) > 0;
+    setText("heroTitle", online ? "All systems operational" : "WARP pool degraded");
+    setText("heroSub", online
+      ? `${pool.healthy}/${pool.active || pool.pool_size || 0} exits healthy · ${ips.length} egress IPv6 · requests rotate automatically on quota limits.`
+      : "The WARP egress pool is not answering. New requests may fail until it recovers.");
+    $("orb").style.background = online ? "var(--green)" : "var(--red)";
+    $("orb").style.boxShadow = `0 0 18px ${online ? "rgba(52,211,153,.9)" : "rgba(251,113,133,.9)"}`;
+    $("railDot").className = "dot live " + (online ? "" : "bad");
+
     setText("egressIp", ips[0] || "No egress IP");
     setText("egressMeta", pool.online
       ? `${pool.healthy}/${pool.active} exits healthy · ${pool.stack || "masque"} · ${pool.cooling_down || 0} cooling down`
       : "WARP pool offline");
     setText("poolHealthy", `${pool.healthy ?? 0}/${pool.active ?? 0}`);
-    setText("poolHint", pool.online ? "live pool" : "pool unreachable");
-    $("statusDot").className = "dot " + (pool.online && (pool.healthy > 0) ? "" : "bad");
-    setText("statusText", pool.online ? "Operational" : "Degraded");
-    setText("footPool", `WARP pool: ${pool.healthy || 0}/${pool.active || 0} healthy · ${(ips.length || 0)} egress IPs`);
+    setText("poolHint", pool.online ? "live pool" : "unreachable");
+    setText("railIp", ips[0] || "—");
+    setText("railSub", pool.online ? `${pool.healthy}/${pool.active} exits · ${pool.stack || "masque"}` : "pool offline");
 
     const security = data.security || {};
-    setText("footSecurity", `security: ${security.configured_keys || 0} master + ${security.generated_keys || 0} generated · ${security.rate_limit_per_minute || 0}/min`);
+    setText("footPool", `WARP pool: ${pool.healthy || 0}/${pool.active || 0} healthy · ${ips.length || 0} egress IPs`);
+    setText("footSecurity", `security: password ${security.dashboard_password ? "on" : "off"} · ${security.generated_keys || 0} keys · ${security.rate_limit_per_minute || 0}/min`);
     setText("footStamp", new Date((data.now || Date.now() / 1000) * 1000).toLocaleString());
+    setText("feedFlow", `${num(totals.active_flows)} active`);
 
+    renderSystem(system);
     renderExits(pool.exits || []);
     renderRotations((data.rotations || {}).recent || []);
     renderFeed(data.events || []);
     renderModels(data.models || {});
-    try { drawChart(data.series || []); } catch (err) { console.warn("chart render failed", err); }
+
+    state.series = data.series || [];
+    drawTraffic();
+    updateLegend();
 
     const tunnel = data.tunnel || {};
     setText("tunnelUrl", tunnel.url || "not connected");
-    $("tunnelChip").style.opacity = tunnel.url ? "1" : ".7";
+    $("tunnelChip").style.opacity = tunnel.url ? "1" : ".65";
     $("copyTunnel").disabled = !tunnel.url;
 
     const origin = location.origin;
     $("baseUrl").textContent = origin + "/v1";
     $("curlSnippet").textContent =
       `curl ${origin}/v1/chat/completions \\\n  -H "Authorization: Bearer $PROXY_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"deepseek-v4.1-flash-free","messages":[{"role":"user","content":"hi"}]}'`;
-    $("refreshBtn").classList.remove("spin");
   }
 
+  /* ---------- render: system ---------- */
+  function meter(id, value, warnAt = 75, badAt = 90) {
+    const meterEl = $(id + "Meter");
+    const bar = $(id + "Bar");
+    if (!meterEl || !bar) return;
+    const v = clamp(Number(value) || 0, 0, 100);
+    bar.style.width = v + "%";
+    meterEl.classList.toggle("amber", v >= warnAt && v < badAt);
+    meterEl.classList.toggle("red", v >= badAt);
+  }
+
+  function renderSystem(sys) {
+    const badge = $("sysBadge");
+    if (!sys || !sys.available) {
+      badge.className = "badge warn";
+      badge.textContent = "exporter off";
+      setText("sysHint", "node_exporter not reachable");
+      setText("sysHost", "—");
+      setText("sysKernel", "");
+      setText("cpuVal", "—"); setText("memVal", "—"); setText("diskVal", "—");
+      setText("cpuLoad", "load —"); setText("cpuCores", "");
+      setText("memDetail", "—"); setText("swapDetail", "");
+      setText("diskDetail", "—"); setText("diskMount", "");
+      setText("netIn", "—"); setText("netOut", "—"); setText("procs", "—"); setText("fds", "—");
+      meter("cpu", 0); meter("mem", 0); meter("disk", 0);
+      drawCpu();
+      return;
+    }
+    badge.className = "badge ok";
+    badge.textContent = "live";
+    setText("sysHint", "node_exporter · 3s");
+
+    const host = sys.host || {}, cpu = sys.cpu || {}, mem = sys.memory || {},
+          disk = sys.disk || {}, net = sys.network || {}, procs = sys.processes || {},
+          files = sys.files || {};
+
+    setText("sysHost", host.nodename || "host");
+    setText("sysKernel", host.kernel ? host.kernel.split("-").slice(0, 2).join("-") : "");
+    state.sysUptimeBase = host.uptime_seconds;
+    state.sysUptimeAt = Date.now();
+    tickSysUptime();
+
+    const cpuPct = cpu.percent;
+    setText("cpuVal", cpuPct == null ? "—" : cpuPct.toFixed(1) + "%");
+    meter("cpu", cpuPct == null ? 0 : cpuPct);
+    setText("cpuLoad", `load ${cpu.load1 ?? "—"} / ${cpu.load5 ?? "—"} / ${cpu.load15 ?? "—"}`);
+    setText("cpuCores", `${cpu.cores || "?"} cores`);
+    if (cpuPct != null) {
+      state.cpuHistory.push(cpuPct);
+      if (state.cpuHistory.length > 60) state.cpuHistory.shift();
+    }
+    drawCpu();
+
+    setText("memVal", pct(mem.percent));
+    meter("mem", mem.percent);
+    setText("memDetail", `${bytes(mem.used)} / ${bytes(mem.total)}`);
+    setText("swapDetail", mem.swap_total ? `swap ${bytes(mem.swap_used)}/${bytes(mem.swap_total)}` : "no swap");
+
+    if (disk.available) {
+      setText("diskVal", pct(disk.percent));
+      meter("disk", disk.percent, 80, 92);
+      setText("diskDetail", `${bytes(disk.used)} / ${bytes(disk.total)}`);
+      setText("diskMount", `free ${bytes(disk.free)}`);
+    } else {
+      setText("diskVal", "—"); meter("disk", 0);
+      setText("diskDetail", "unavailable"); setText("diskMount", "");
+    }
+
+    setText("netIn", rate(net.rx_per_sec || 0));
+    setText("netOut", rate(net.tx_per_sec || 0));
+    setText("procs", `${num(procs.running)} run · ${num(procs.total)} total`);
+    setText("fds", files.maximum ? `${num(files.allocated)} / ${num(files.maximum)}` : "—");
+  }
+
+  function tickSysUptime() {
+    if (state.sysUptimeBase == null) return;
+    const seconds = state.sysUptimeBase + (Date.now() - state.sysUptimeAt) / 1000;
+    setText("sysUptime", "up " + dur(seconds));
+  }
+
+  function drawCpu() {
+    const canvas = $("cpuChart");
+    if (!canvas) return;
+    const wrap = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    if (!w || !h) return;
+    canvas.width = Math.floor(w * dpr); canvas.height = Math.floor(h * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const data = state.cpuHistory;
+    if (!data.length) return;
+    const max = Math.max(10, ...data) * 1.15;
+    const step = w / Math.max(1, data.length - 1);
+    const y = (v) => h - (v / max) * (h - 4) - 1;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "rgba(124,140,255,.45)");
+    grad.addColorStop(1, "rgba(53,224,240,.02)");
+
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    data.forEach((v, i) => ctx.lineTo(i * step, y(v)));
+    ctx.lineTo((data.length - 1) * step, h);
+    ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+
+    ctx.beginPath();
+    data.forEach((v, i) => (i ? ctx.lineTo(i * step, y(v)) : ctx.moveTo(0, y(v))));
+    ctx.strokeStyle = "rgba(124,140,255,.95)";
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  }
+
+  /* ---------- render: egress ---------- */
   function renderExits(exits) {
     const box = $("exitList");
     if (!exits.length) { box.innerHTML = `<div class="empty">No exits reported by the WARP pool.</div>`; return; }
     box.innerHTML = exits.map((e) => `
       <div class="exit">
-        <span class="dot ${e.state === "healthy" || e.state === "in_use" ? "" : "warn"}" style="width:7px;height:7px"></span>
+        <span class="dot ${e.state === "healthy" || e.state === "in_use" ? "" : "warn"}"></span>
         <div style="min-width:0">
           <div class="eip">${esc(e.ip || "assigning…")}</div>
           <div class="id">${esc(e.id || "")}</div>
         </div>
-        <div style="text-align:right">
+        <div class="side">
           <span class="badge ${esc(e.state || "starting")}">${esc(e.state || "starting")}</span>
-          <div class="served">${fmt(e.served || 0)} tunnels</div>
+          <div class="served">${num(e.served || 0)} served</div>
         </div>
       </div>`).join("");
   }
@@ -551,26 +970,36 @@
   function renderRotations(items) {
     const box = $("rotHistory");
     if (!items.length) { box.innerHTML = ""; return; }
-    box.innerHTML = `<div class="hint" style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Recent rotations</div>` +
-      items.map((r) => `
-        <div class="rot" title="${esc(r.reason || "rotation")}">
-          <span class="mono">${esc(r.old_ip || "pool")}</span>
-          <span class="arrow">→</span>
-          <span class="mono">${esc(r.new_ip || "new exit")}</span>
-          <time>${esc(ago(r.timestamp))}</time>
+    box.innerHTML = `<div class="eyebrow" style="margin-bottom:4px">Recent rotations</div>` +
+      items.slice(0, 4).map((r) => `
+        <div class="exit" style="grid-template-columns:minmax(0,1fr) auto;border-bottom:0;padding:3px 0" title="${esc(r.reason || "rotation")}">
+          <span class="mono" style="font-size:10.5px;color:var(--muted)">${esc(r.old_ip || "pool")} <span style="color:var(--indigo)">→</span> ${esc(r.new_ip || "new exit")}</span>
+          <time class="mono" style="font-size:9.5px;color:var(--dim)">${esc(ago(r.timestamp))}</time>
         </div>`).join("");
   }
 
+  /* ---------- render: feed ---------- */
   function renderFeed(events) {
     const box = $("feed");
-    if (!events.length) { box.innerHTML = `<div class="empty">No requests yet. Point a client at <span class="mono">/v1</span> to see live traffic.</div>`; return; }
-    box.innerHTML = events.map((e) => `
-      <div class="row">
-        <span class="t">${esc(clock(e.at))}</span>
-        <span class="ep">${esc(e.endpoint)}<small>${esc(e.client || "client")}</small></span>
-        <span class="code ${e.ok ? "ok" : "bad"}">${esc(e.status)}</span>
-        <span class="ms">${e.duration_ms >= 1000 ? (e.duration_ms / 1000).toFixed(1) + "s" : Math.round(e.duration_ms) + "ms"}</span>
-      </div>`).join("");
+    if (!events.length) {
+      box.innerHTML = `<div class="empty">No requests yet.<br>Point a client at <span class="mono">/v1</span> to see live traffic.</div>`;
+      return;
+    }
+    const head = `<div class="feed-row feed-head"><span>Time</span><span>Endpoint</span><span>Status</span><span class="num">tok/s</span><span class="num dur">Took</span></div>`;
+    box.innerHTML = head + events.map((e) => {
+      const status = e.pending ? '<span class="code warn">···</span>' : `<span class="code ${e.ok ? "ok" : "bad"}">${esc(e.status)}</span>`;
+      const tps = e.tps ? `<b>${e.tps.toFixed ? e.tps.toFixed(1) : e.tps}</b>` : "—";
+      const tokens = e.tokens_out ? ` · ${num(e.tokens_out)} tok` : "";
+      const took = e.duration_ms >= 1000 ? (e.duration_ms / 1000).toFixed(1) + "s" : Math.round(e.duration_ms) + "ms";
+      return `
+        <div class="feed-row">
+          <span class="t">${esc(clock(e.at))}</span>
+          <span class="ep"><b>${esc(e.endpoint)}${e.model ? " · " + esc(e.model) : ""}</b><small>${esc(e.client || "client")}${tokens}</small></span>
+          ${status}
+          <span class="num">${tps}</span>
+          <span class="num dur">${took}</span>
+        </div>`;
+    }).join("");
   }
 
   function renderModels(models) {
@@ -583,15 +1012,30 @@
     box.innerHTML = entries.slice(0, 8).map(([name, u]) => `
       <div class="model">
         <span class="n" title="${esc(name)}">${esc(name)}</span>
-        <span class="c">${fmt(u.requests)} req</span>
+        <span class="c">${num(u.requests)} req</span>
         <span class="bar"><i style="width:${Math.max(4, ((u.requests || 0) / max) * 100)}%"></i></span>
       </div>`).join("");
   }
 
   /* ---------- chart ---------- */
-  function drawChart(series) {
-    const canvas = $("chart");
-    const wrap = canvas.parentElement;
+  function updateLegend() {
+    const series = state.series || [];
+    const ok = series.reduce((s, p) => s + (p.ok || 0), 0);
+    const err = series.reduce((s, p) => s + (p.error || 0), 0);
+    setText("legendOk", num(ok));
+    setText("legendErr", num(err));
+    setText("legendTotal", num(ok + err));
+    const tpsValues = series.filter((p) => p.tps > 0);
+    if (tpsValues.length) {
+      const avg = tpsValues.reduce((s, p) => s + p.tps, 0) / tpsValues.length;
+      setText("legendTps", `≈ ${avg.toFixed(1)} tok/s`);
+    } else setText("legendTps", "");
+  }
+
+  function drawTraffic() {
+    const canvas = $("trafficChart");
+    if (!canvas) return;
+    const wrap = $("chartWrap");
     const dpr = window.devicePixelRatio || 1;
     const w = wrap.clientWidth, h = wrap.clientHeight;
     canvas.width = Math.max(1, Math.floor(w * dpr));
@@ -600,69 +1044,125 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    const total = series.reduce((sum, p) => sum + p.total, 0);
-    $("chartEmpty").style.display = total ? "none" : "grid";
+    const series = state.series || [];
+    const mode = state.chartMode;
+    const total = series.reduce((s, p) => s + (mode === "tokens" ? p.tokens || 0 : p.total || 0), 0);
+    const empty = $("chartEmpty");
+    empty.style.display = total ? "none" : "grid";
+    empty.textContent = mode === "tokens" ? "No token data yet…" : "Waiting for traffic…";
     if (!series.length) return;
 
-    const pad = { l: 6, r: 6, t: 10, b: 18 };
-    const max = Math.max(1, ...series.map((p) => p.total));
-    const innerW = w - pad.l - pad.r, innerH = h - pad.t - pad.b;
-    const step = innerW / Math.max(1, series.length);
+    const pad = { l: 34, r: 8, t: 10, b: 20 };
+    const innerW = Math.max(1, w - pad.l - pad.r);
+    const innerH = Math.max(1, h - pad.t - pad.b);
+    const values = series.map((p) => (mode === "tokens" ? p.tokens || 0 : p.total || 0));
+    const max = Math.max(mode === "tokens" ? 64 : 1, ...values);
 
-    ctx.strokeStyle = "rgba(255,255,255,.06)";
-    ctx.lineWidth = 1;
+    // grid + axis labels
+    ctx.font = "9.5px " + getComputedStyle(document.body).fontFamily;
+    ctx.textBaseline = "middle";
     for (let i = 0; i <= 3; i++) {
       const y = pad.t + (innerH / 3) * i;
+      ctx.strokeStyle = "rgba(255,255,255,.055)";
+      ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+      const label = Math.round(max * (1 - i / 3));
+      ctx.fillStyle = "rgba(147,161,186,.7)";
+      ctx.textAlign = "right";
+      ctx.fillText(label >= 1000 ? (label / 1000).toFixed(1) + "k" : String(label), pad.l - 7, y);
     }
 
+    const step = innerW / Math.max(1, series.length - 1);
+    const x = (i) => pad.l + i * step;
+    const y = (v) => pad.t + innerH - (v / max) * innerH;
+
+    // area fill
     const grad = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
-    grad.addColorStop(0, "rgba(139,92,246,.85)");
-    grad.addColorStop(1, "rgba(34,211,238,.45)");
+    if (mode === "tokens") {
+      grad.addColorStop(0, "rgba(53,224,240,.42)");
+      grad.addColorStop(1, "rgba(53,224,240,.02)");
+    } else {
+      grad.addColorStop(0, "rgba(124,140,255,.42)");
+      grad.addColorStop(1, "rgba(124,140,255,.02)");
+    }
+    ctx.beginPath();
+    ctx.moveTo(x(0), y(values[0]));
+    for (let i = 1; i < values.length; i++) {
+      const cx = (x(i - 1) + x(i)) / 2;
+      ctx.bezierCurveTo(cx, y(values[i - 1]), cx, y(values[i]), x(i), y(values[i]));
+    }
+    ctx.lineTo(x(values.length - 1), pad.t + innerH);
+    ctx.lineTo(x(0), pad.t + innerH);
+    ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
 
-    const bw = Math.max(2, Math.min(16, step * 0.62));
-    const radius = Math.min(4, bw / 2);
-    series.forEach((p, i) => {
-      const x = pad.l + i * step + (step - bw) / 2;
-      const okH = (p.ok / max) * innerH;
-      const errH = (p.error / max) * innerH;
-      if (p.ok) {
-        ctx.fillStyle = grad;
-        const y = pad.t + innerH - okH;
-        ctx.beginPath(); ctx.roundRect(x, y, bw, okH, [radius, radius, 0, 0]); ctx.fill();
-      }
-      if (p.error) {
-        ctx.fillStyle = "rgba(248,113,113,.9)";
-        const y = pad.t + innerH - okH - errH;
-        ctx.beginPath(); ctx.roundRect(x, y, bw, Math.max(2, errH), [radius, radius, 0, 0]); ctx.fill();
-      }
-    });
+    // error bars (requests mode only)
+    if (mode === "requests") {
+      series.forEach((p, i) => {
+        if (!p.error) return;
+        const errH = (p.error / max) * innerH;
+        ctx.fillStyle = "rgba(251,113,133,.75)";
+        ctx.fillRect(x(i) - 1.5, y(values[i]) - errH, 3, errH);
+      });
+    }
 
-    ctx.fillStyle = "rgba(139,152,173,.75)";
-    ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+    // line
+    ctx.beginPath();
+    ctx.moveTo(x(0), y(values[0]));
+    for (let i = 1; i < values.length; i++) {
+      const cx = (x(i - 1) + x(i)) / 2;
+      ctx.bezierCurveTo(cx, y(values[i - 1]), cx, y(values[i]), x(i), y(values[i]));
+    }
+    ctx.strokeStyle = mode === "tokens" ? "rgba(53,224,240,.95)" : "rgba(154,166,255,.98)";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    // x labels
+    ctx.fillStyle = "rgba(147,161,186,.7)";
     ctx.textAlign = "left";
-    ctx.fillText("-30m", pad.l, h - 4);
+    ctx.fillText(hhmm(series[0].minute), pad.l, h - 6);
     ctx.textAlign = "right";
-    ctx.fillText("now", w - pad.r, h - 4);
+    ctx.fillText("now", w - pad.r, h - 6);
+
+    state.chartGeom = { series, values, max, pad, step, w, h, mode };
+  }
+
+  function bindChartHover() {
+    const wrap = $("chartWrap");
+    const tip = $("chartTip");
+    wrap.addEventListener("mousemove", (ev) => {
+      const geom = state.chartGeom;
+      if (!geom) { tip.style.opacity = "0"; return; }
+      const rect = wrap.getBoundingClientRect();
+      const px = ev.clientX - rect.left;
+      if (px < geom.pad.l || px > geom.w - geom.pad.r) { tip.style.opacity = "0"; return; }
+      const idx = clamp(Math.round((px - geom.pad.l) / geom.step), 0, geom.series.length - 1);
+      const point = geom.series[idx];
+      const value = geom.mode === "tokens" ? point.tokens : point.total;
+      tip.innerHTML = `<span style="color:var(--dim)">${hhmm(point.minute)}</span> · <b>${num(value)}</b> ${geom.mode === "tokens" ? "tokens" : "req"}`;
+      tip.style.left = (geom.pad.l + idx * geom.step) + "px";
+      tip.style.top = (geom.pad.y ? geom.pad.y(value) : 30) + "px";
+      tip.style.opacity = "1";
+    });
+    wrap.addEventListener("mouseleave", () => { tip.style.opacity = "0"; });
   }
 
   /* ---------- keys ---------- */
   function renderKeys(keys) {
     state.keys = keys;
-    const box = $("keyList");
-    setText("keysHint", `${keys.filter((k) => !k.revoked).length} active`);
     const live = keys.filter((k) => !k.revoked);
+    setText("keysHint", `${live.length} active`);
     $("keyEmpty").hidden = live.length > 0;
+    const box = $("keyList");
     box.innerHTML = live.map((k) => `
       <div class="key" data-id="${esc(k.id)}">
         <div style="min-width:0">
           <div class="lbl">${esc(k.label)}</div>
           <div class="pfx">${esc(k.prefix)}…</div>
-          <div class="sub">${fmt(k.request_count || 0)} req · last used ${esc(ago(k.last_used_at))}</div>
+          <div class="sub">${num(k.request_count || 0)} req · last used ${esc(ago(k.last_used_at))}</div>
         </div>
-        <div class="acts">
-          <button class="mini danger" data-revoke="${esc(k.id)}">Revoke</button>
-        </div>
+        <div><button class="mini danger" data-revoke="${esc(k.id)}">Revoke</button></div>
       </div>`).join("");
 
     box.querySelectorAll("[data-revoke]").forEach((btn) => {
@@ -696,11 +1196,8 @@
     btn.disabled = true; icon.classList.add("spin"); label.textContent = "Rotating…";
     try {
       const data = await api("/api/ip/rotate", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      if (data.ok) {
-        toast("New WARP IP", `${data.old_ip || "—"} → ${data.new_ip || "—"}`);
-      } else {
-        toast("Rotation unavailable", `Pool answered: ${data.reason || "unknown"}`, "err");
-      }
+      if (data.ok) toast("New WARP IP", `${data.old_ip || "—"} → ${data.new_ip || "—"}`);
+      else toast("Rotation unavailable", `Pool answered: ${data.reason || "unknown"}`, "err");
       await refresh();
     } catch (e) {
       toast("Rotation failed", String(e.message || e), "err");
@@ -723,54 +1220,75 @@
     } catch (e) { toast("Could not create key", String(e.message || e), "err"); }
   }
 
+  async function logout() {
+    try { await fetch("/logout", { method: "POST", credentials: "same-origin" }); } catch {}
+    location.href = "/login";
+  }
+
   /* ---------- loop ---------- */
   let timer = null;
   async function refresh() {
     if (state.loading || state.hidden) return;
     state.loading = true;
+    $("refreshBtn").classList.add("spin");
     try {
       const data = await api("/api/overview");
       applyOverview(data);
     } catch (e) {
       if (String(e.message) !== "unauthorized") {
-        $("statusDot").className = "dot bad";
-        setText("statusText", "Offline");
-        $("refreshBtn").classList.remove("spin");
+        $("railDot").className = "dot bad";
+        setText("heroTitle", "Gateway unreachable");
+        setText("heroSub", String(e.message || e));
       }
     } finally {
       state.loading = false;
+      $("refreshBtn").classList.remove("spin");
       clearTimeout(timer);
-      timer = setTimeout(refresh, 5000);
+      timer = setTimeout(refresh, state.hidden ? 20000 : 4000);
     }
   }
 
   function tickUptime() {
     if (state.uptimeBase == null) return;
-    const seconds = state.uptimeBase + (Date.now() - state.uptimeAt) / 1000;
-    setText("uptime", dur(seconds));
+    setText("clock", new Date().toLocaleTimeString());
+    tickSysUptime();
   }
 
   /* ---------- wiring ---------- */
-  $("refreshBtn").addEventListener("click", () => { $("refreshBtn").classList.add("spin"); refresh(); loadKeys(); });
+  $("refreshBtn").addEventListener("click", () => refresh());
   $("rotateBtn").addEventListener("click", rotate);
   $("keyForm").addEventListener("submit", generateKey);
+  $("logoutBtn").addEventListener("click", logout);
   $("copyBase").addEventListener("click", () => copy($("baseUrl").textContent, "Base URL"));
   $("copyCurl").addEventListener("click", () => copy($("curlSnippet").textContent, "cURL"));
-  $("copyTunnel").addEventListener("click", () => { const u = $("tunnelUrl").textContent; if (u && u !== "not connected") copy(u, "Tunnel URL"); });
-  $("tunnelChip").addEventListener("click", (e) => { if (e.target.id !== "copyTunnel") { const u = $("tunnelUrl").textContent; if (u && u !== "not connected") copy(u, "Tunnel URL"); } });
+  $("copyTunnel").addEventListener("click", (e) => { e.stopPropagation(); const u = $("tunnelUrl").textContent; if (u && u !== "not connected") copy(u, "Public URL"); });
+  $("tunnelChip").addEventListener("click", () => { const u = $("tunnelUrl").textContent; if (u && u !== "not connected") copy(u, "Public URL"); });
   $("copyNewKey").addEventListener("click", () => copy($("newKeyValue").textContent, "API key"));
   $("closeKeyModal").addEventListener("click", () => $("keyModal").classList.remove("show"));
   $("keyModal").addEventListener("click", (e) => { if (e.target === $("keyModal")) $("keyModal").classList.remove("show"); });
-  $("gateBtn").addEventListener("click", () => {
-    const key = $("gateKey").value.trim();
-    if (key) location.href = "/dashboard?key=" + encodeURIComponent(key);
+
+  document.querySelectorAll(".seg button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".seg button").forEach((b) => b.classList.remove("on"));
+      btn.classList.add("on");
+      state.chartMode = btn.dataset.mode;
+      drawTraffic();
+    });
   });
-  $("gateKey").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gateBtn").click(); });
+
+  document.querySelectorAll(".nav a").forEach((link) => {
+    link.addEventListener("click", () => {
+      document.querySelectorAll(".nav a").forEach((l) => l.classList.remove("active"));
+      link.classList.add("active");
+    });
+  });
+
   document.addEventListener("visibilitychange", () => {
     state.hidden = document.hidden;
     if (!state.hidden) refresh();
   });
-  window.addEventListener("resize", () => { if (state.overview) drawChart(state.overview.series || []); });
+  window.addEventListener("resize", () => { drawTraffic(); drawCpu(); });
+  bindChartHover();
   setInterval(tickUptime, 1000);
 
   refresh();

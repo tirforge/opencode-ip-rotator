@@ -1,42 +1,58 @@
-"""API-key authentication and request throttling.
+"""Authentication for the API and the browser dashboard.
 
-The public deployment sits on the open internet, so every proxy endpoint is
-gated behind a shared secret. Clients send it as ``Authorization: Bearer ...``
-(OpenAI style) or ``x-api-key`` (Anthropic style). Browsers can open the
-dashboard with ``?key=<secret>`` once; the server then hands back a short-lived
-HttpOnly cookie so the dashboard's own fetches keep working.
+Two independent doors:
 
-Design notes for Vercel:
-- State is per function instance. Throttling is best-effort, not a distributed
-  quota. That is still enough to stop casual abuse and runaway loops.
-- If no key is configured on Vercel the service fails closed (503) instead of
-  accidentally exposing a free LLM proxy to the internet.
+* **API clients** send the shared secret as ``Authorization: Bearer ...`` or
+  ``x-api-key``. Dashboard-generated keys live hashed in SQLite.
+* **Humans** open the dashboard and enter a password. It is verified with
+  Argon2id and exchanged for a signed, HttpOnly, SameSite=Lax session cookie;
+  the password itself is never stored client-side. State-changing dashboard
+  calls must also echo the session's CSRF token.
+
+The middleware fails closed: if no credential is configured on a public
+deployment it returns 503 instead of exposing a free LLM proxy.
 """
+
+from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import threading
 import time
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.keys import active_key_hashes, verify_key
+from core.session import (
+    COOKIE_NAME,
+    cookie_is_secure,
+    load_session,
+    new_session,
+    sign_session,
+    verify_password,
+)
 
-# Paths that stay reachable without a key.
-PUBLIC_PATHS = {"/health"}
+log = logging.getLogger("core.auth")
 
-# Routes served to the browser dashboard after a key has been exchanged for a
-# cookie (the key itself is never stored in the cookie).
-DASHBOARD_PATHS = ("/dashboard", "/metrics", "/api")
+# Paths that stay reachable without any credential.
+PUBLIC_PATHS = {"/health", "/login", "/logout", "/favicon.ico", "/robots.txt"}
+PUBLIC_PREFIXES = ("/static/",)
 
-COOKIE_NAME = "oc_proxy_session"
-COOKIE_MAX_AGE = 60 * 60 * 12  # 12 hours
+# Pages that render in a browser. Unauthenticated visitors are redirected to
+# the login page instead of receiving a JSON 401.
+HTML_PATHS = {"/", "/dashboard"}
+
+COOKIE_MAX_AGE = 12 * 60 * 60
 
 _IS_VERCEL = bool(os.environ.get("VERCEL"))
+
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 def _configured_keys() -> List[str]:
@@ -45,13 +61,10 @@ def _configured_keys() -> List[str]:
 
 
 def _key_fingerprint(api_key: str) -> str:
-    """Stable, non-reversible identifier used for the dashboard cookie."""
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
 
 def _matches_any(candidate: str, keys: List[str]) -> bool:
-    # Compare against every key with a constant-time check so timing does not
-    # reveal how much of the secret was correct.
     ok = False
     for key in keys:
         ok |= hmac.compare_digest(candidate, key)
@@ -64,27 +77,11 @@ def _extract_key(request: Request) -> Optional[str]:
         token = auth[7:].strip()
         if token:
             return token
-
     for header in ("x-api-key", "api-key"):
         value = request.headers.get(header)
         if value and value.strip():
             return value.strip()
-
-    query_key = request.query_params.get("key")
-    if query_key and request.method in ("GET", "HEAD"):
-        return query_key.strip()
-
-    cookie = request.cookies.get(COOKIE_NAME)
-    if cookie:
-        # Cookie holds a fingerprint, not the key; report it as pre-verified.
-        return f"cookie:{cookie}"
     return None
-
-
-def _valid_session_cookie(cookie_value: str, keys: List[str], generated: List[str]) -> bool:
-    if any(hmac.compare_digest(cookie_value, _key_fingerprint(k)) for k in keys):
-        return True
-    return any(hmac.compare_digest(cookie_value, digest) for digest in generated)
 
 
 def client_ip(request: Request) -> str:
@@ -130,8 +127,23 @@ def _unauthorized(message: str) -> JSONResponse:
     )
 
 
+def _login_redirect(request: Request) -> RedirectResponse:
+    target = request.url.path
+    if request.url.query:
+        target += "?" + request.url.query
+    return RedirectResponse(url=f"/login?next={quote(target, safe='')}", status_code=303)
+
+
+def _valid_credential(candidate: str) -> bool:
+    if not candidate:
+        return False
+    if verify_password(candidate):
+        return True
+    return _matches_any(candidate, _configured_keys()) or verify_key(candidate) is not None
+
+
 class ApiKeyMiddleware(BaseHTTPMiddleware):
-    """Gate every non-public route behind a key and a per-client rate limit."""
+    """Gate API routes behind a key and HTML routes behind a password session."""
 
     def __init__(self, app, limit: int, window: int, allowlist: List[str]) -> None:
         super().__init__(app)
@@ -146,10 +158,62 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         ]
         return configured or self.allowlist
 
+    def _csrf_error(self, request: Request, session: Dict[str, object]) -> Optional[JSONResponse]:
+        if request.method in SAFE_METHODS or not request.url.path.startswith("/api"):
+            return None
+        expected = str(session.get("csrf") or "")
+        supplied = request.headers.get("x-csrf-token", "")
+        if expected and hmac.compare_digest(expected, supplied):
+            return None
+        origin = request.headers.get("origin")
+        if origin:
+            host = request.headers.get("host", "")
+            if host and origin.split("//")[-1].split("/")[0] != host:
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": {"message": "Cross-origin request blocked.", "type": "csrf_error", "code": 403}},
+                )
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "message": "Missing or invalid CSRF token. Reload the dashboard.",
+                    "type": "csrf_error",
+                    "code": 403,
+                }
+            },
+        )
+
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if path in PUBLIC_PATHS:
+        if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
             return await call_next(request)
+
+        # --- 1. Existing signed session -------------------------------------
+        session = load_session(request.cookies.get(COOKIE_NAME, ""))
+        if session:
+            request.state.session = session
+            csrf_error = self._csrf_error(request, session)
+            if csrf_error is not None:
+                return csrf_error
+            return await call_next(request)
+
+        # --- 2. ?key= bootstrap (dashboard shortcut / automation) ------------
+        query_key = (request.query_params.get("key") or "").strip()
+        if query_key and request.method in SAFE_METHODS and path in HTML_PATHS:
+            if _valid_credential(query_key):
+                data = new_session()
+                response = RedirectResponse(url=path, status_code=303)
+                response.set_cookie(
+                    COOKIE_NAME,
+                    sign_session(data),
+                    max_age=COOKIE_MAX_AGE,
+                    httponly=True,
+                    secure=cookie_is_secure(request),
+                    samesite="lax",
+                    path="/",
+                )
+                return response
 
         keys = _configured_keys()
         generated_hashes = active_key_hashes()
@@ -165,7 +229,10 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
                         }
                     },
                 )
-            # Local/Docker development without a key keeps working.
+            # Local/Docker development without a key keeps working, but the
+            # dashboard still asks for a password when one is configured.
+            if path in HTML_PATHS:
+                return await call_next(request)
             return await call_next(request)
 
         if self._active_allowlist() and client_ip(request) not in self._active_allowlist():
@@ -180,16 +247,16 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
                 },
             )
 
+        # --- 3. Browser pages without a session ------------------------------
+        if request.method in SAFE_METHODS and path in HTML_PATHS:
+            return _login_redirect(request)
+
+        # --- 4. API key ------------------------------------------------------
         supplied = _extract_key(request)
         if not supplied:
             return _unauthorized(
                 "Missing API key. Send 'Authorization: Bearer <key>' or 'x-api-key: <key>'."
             )
-
-        if supplied.startswith("cookie:"):
-            if not _valid_session_cookie(supplied[7:], keys, generated_hashes):
-                return _unauthorized("Dashboard session expired. Re-open it with ?key=<key>.")
-            return await call_next(request)
 
         if not _matches_any(supplied, keys) and verify_key(supplied) is None:
             return _unauthorized("Invalid API key.")
@@ -210,27 +277,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
                 headers={"Retry-After": str(retry_after)},
             )
 
-        wants_cookie = bool(request.query_params.get("key")) and path.startswith(
-            DASHBOARD_PATHS
-        )
-
-        if wants_cookie and path == "/dashboard" and request.method == "GET":
-            # Strip the secret from the visible URL, but keep the session.
-            response = RedirectResponse(url="/dashboard", status_code=302)
-        else:
-            response = await call_next(request)
-
-        if wants_cookie:
-            response.set_cookie(
-                COOKIE_NAME,
-                _key_fingerprint(supplied),
-                max_age=COOKIE_MAX_AGE,
-                httponly=True,
-                secure=request.url.scheme == "https",
-                samesite="strict",
-                path="/",
-            )
-        return response
+        return await call_next(request)
 
 
 def auth_summary() -> Dict[str, object]:
@@ -240,10 +287,14 @@ def auth_summary() -> Dict[str, object]:
         generated = len(active_key_hashes())
     except Exception:  # noqa: BLE001
         generated = 0
+    from core.session import password_configured
+
     return {
         "api_key_required": bool(keys) or generated > 0 or _IS_VERCEL,
         "configured_keys": len(keys),
         "generated_keys": generated,
+        "dashboard_password": password_configured(),
+        "session_cookie": COOKIE_NAME,
         "rate_limit_per_minute": int(os.environ.get("PROXY_RATE_LIMIT", "60")),
         "ip_allowlist_entries": len(
             [p for p in os.environ.get("PROXY_IP_ALLOWLIST", "").split(",") if p.strip()]

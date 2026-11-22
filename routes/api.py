@@ -14,9 +14,10 @@ from core.db import (
     recent_rotations,
     record_rotation,
 )
-from core.events import recent_events, request_series, window_totals
+from core.events import recent_events, request_series, token_stats, window_totals
 from core.keys import create_key, list_keys, revoke_key
 from core.metrics import STARTUP_TIME, metrics, prom_active_flows
+from core.sysinfo import snapshot as system_snapshot
 from core.tunnel import tunnel_info
 from services import warp_admin
 from services.discovery import get_discovered_models
@@ -74,6 +75,8 @@ def _build_overview() -> Dict[str, Any]:
             "count": count_rotations(),
             "recent": recent_rotations(8),
         },
+        "tokens": token_stats(),
+        "system": system_snapshot(),
         "series": request_series(30),
         "events": recent_events(25),
         "security": auth_summary(),
@@ -84,6 +87,11 @@ def _build_overview() -> Dict[str, Any]:
 @router.get("/overview")
 async def overview() -> Dict[str, Any]:
     return await asyncio.to_thread(_build_overview)
+
+
+@router.get("/system")
+async def system() -> Dict[str, Any]:
+    return await asyncio.to_thread(system_snapshot)
 
 
 @router.get("/requests")

@@ -45,6 +45,7 @@ from core.db import (
     record_usage,
     release_flow_lease,
 )
+from core.events import finish_event
 from core.metrics import (
     metrics,
     prom_active_flows,
@@ -557,6 +558,129 @@ def _retry_after(response: Any) -> Optional[int]:
     except (TypeError, ValueError):
         seconds = None
     return seconds if seconds is not None and seconds >= 0 else None
+
+
+# ---------------------------------------------------------------------------
+# Token accounting for streamed responses
+# ---------------------------------------------------------------------------
+def new_stream_tracker() -> Dict[str, Any]:
+    return {
+        "chars": 0,
+        "usage": None,
+        "first_at": None,
+        "last_at": None,
+    }
+
+
+def _usage_tokens(usage: Any) -> Tuple[int, int]:
+    if not isinstance(usage, dict):
+        return 0, 0
+    raw_in = usage.get("prompt_tokens")
+    if raw_in is None:
+        raw_in = usage.get("input_tokens")
+    raw_out = usage.get("completion_tokens")
+    if raw_out is None:
+        raw_out = usage.get("output_tokens")
+
+    def _int(value: Any) -> int:
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return 0
+
+    return _int(raw_in), _int(raw_out)
+
+
+def observe_stream_payload(
+    payload: Dict[str, Any], endpoint: str, tracker: Dict[str, Any]
+) -> None:
+    """Accumulate visible output characters and the final usage block."""
+    size = 0
+    usage: Any = None
+
+    if endpoint == "chat":
+        if isinstance(payload.get("usage"), dict):
+            usage = payload["usage"]
+        choices = payload.get("choices")
+        if isinstance(choices, list):
+            for choice in choices:
+                if not isinstance(choice, dict):
+                    continue
+                delta = choice.get("delta")
+                if not isinstance(delta, dict):
+                    delta = choice.get("message")
+                if not isinstance(delta, dict):
+                    continue
+                content = delta.get("content")
+                if isinstance(content, str):
+                    size += len(content)
+                reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+                if isinstance(reasoning, str):
+                    size += len(reasoning)
+                tool_calls = delta.get("tool_calls")
+                if isinstance(tool_calls, list):
+                    for call in tool_calls:
+                        function = (call or {}).get("function") or {}
+                        arguments = function.get("arguments")
+                        if isinstance(arguments, str):
+                            size += len(arguments)
+
+    elif endpoint == "messages":
+        event_type = payload.get("type")
+        if event_type == "content_block_delta":
+            delta = payload.get("delta") or {}
+            for key in ("text", "thinking", "partial_json", "signature"):
+                value = delta.get(key)
+                if isinstance(value, str):
+                    size += len(value)
+        if event_type == "message_start":
+            message = payload.get("message") or {}
+            if isinstance(message.get("usage"), dict):
+                usage = message["usage"]
+        elif event_type == "message_delta" and isinstance(payload.get("usage"), dict):
+            usage = payload["usage"]
+
+    else:  # responses API
+        event_type = payload.get("type")
+        delta = payload.get("delta")
+        if event_type == "response.output_text.delta" and isinstance(delta, str):
+            size += len(delta)
+        if event_type == "response.completed":
+            response_object = payload.get("response") or {}
+            if isinstance(response_object.get("usage"), dict):
+                usage = response_object["usage"]
+        if isinstance(payload.get("usage"), dict):
+            usage = payload["usage"]
+
+    now = time.time()
+    if size:
+        if tracker["first_at"] is None:
+            tracker["first_at"] = now
+        tracker["last_at"] = now
+        tracker["chars"] += size
+    if usage is not None:
+        # Merge so Anthropic's message_start input tokens survive message_delta.
+        merged = dict(tracker["usage"] or {})
+        merged.update(usage)
+        tracker["usage"] = merged
+
+
+def finalize_stream_tokens(
+    tracker: Dict[str, Any], started_at: float, finished_at: float
+) -> Tuple[int, int, Optional[float]]:
+    tokens_in, tokens_out = _usage_tokens(tracker.get("usage"))
+    if tokens_out <= 0 and tracker["chars"]:
+        # Typical English/code ratio; only used when upstream omits usage.
+        tokens_out = max(1, round(tracker["chars"] / 4))
+    first_at = tracker.get("first_at")
+    last_at = tracker.get("last_at")
+    if first_at and last_at and last_at > first_at:
+        span = last_at - first_at
+    else:
+        span = max(0.05, finished_at - started_at)
+    tps = round(tokens_out / span, 2) if tokens_out and span > 0 else None
+    return tokens_in, tokens_out, tps
+
 
 
 def _accumulate_chat_chunk(payload: Dict[str, Any], state: Dict[str, Any]) -> None:
@@ -1157,6 +1281,16 @@ async def forward_upstream_request(
                     pass
                 return JSONResponse(status_code=429, content={"error": {"message": raw_text}})
 
+        tracker = new_stream_tracker()
+
+        def _observe(line: Any) -> None:
+            payload = parse_sse_line(line)
+            if payload:
+                observe_stream_payload(payload, endpoint, tracker)
+
+        if first_line:
+            _observe(first_line)
+
         async def stream_with_first():
             prom_active_flows.inc()
             try:
@@ -1169,16 +1303,38 @@ async def forward_upstream_request(
                     if line is None:
                         break
                     if line:
+                        _observe(line)
                         yield line + b"\n\n"
                     else:
                         yield b"\n"
             finally:
+                finished = time.time()
+                elapsed = finished - start_time
                 prom_active_flows.dec()
                 session.close()
                 release_flow_lease(lease_id)
                 prom_request_duration.labels(
                     model=model_name, endpoint=endpoint
-                ).observe(time.time() - start_time)
+                ).observe(elapsed)
+
+                tokens_in, tokens_out, tps = finalize_stream_tokens(
+                    tracker, start_time, finished
+                )
+                try:
+                    record_usage(model_name, tokens_in, tokens_out, 0.0)
+                except Exception as exc:  # noqa: BLE001 - stats must not break SSE
+                    log.debug("Could not record stream usage: %s", exc)
+                event_id = getattr(getattr(raw_request, "state", None), "event_id", None)
+                if event_id:
+                    finish_event(
+                        event_id,
+                        duration_ms=round(elapsed * 1000, 1),
+                        tokens_in=tokens_in,
+                        tokens_out=tokens_out,
+                        tps=tps,
+                        stream=True,
+                        ok=True,
+                    )
 
         return StreamingResponse(
             stream_with_first(),
@@ -1227,9 +1383,22 @@ async def forward_upstream_request(
     duration = time.time() - start_time
     prom_request_duration.labels(model=model_name, endpoint=endpoint).observe(duration)
 
-    usage = assembled.get("usage", {})
-    prompt_tokens = usage.get("prompt_tokens", 0)
-    completion_tokens = usage.get("completion_tokens", 0)
+    prompt_tokens, completion_tokens = _usage_tokens(assembled.get("usage"))
     record_usage(model_name, prompt_tokens, completion_tokens, 0.0)
+    event_id = getattr(getattr(raw_request, "state", None), "event_id", None)
+    if event_id:
+        finish_event(
+            event_id,
+            duration_ms=round(duration * 1000, 1),
+            tokens_in=prompt_tokens,
+            tokens_out=completion_tokens,
+            tps=(
+                round(completion_tokens / duration, 2)
+                if completion_tokens and duration > 0
+                else None
+            ),
+            stream=False,
+            ok=True,
+        )
 
     return JSONResponse(status_code=200, content=assembled)

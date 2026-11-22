@@ -1,0 +1,31 @@
+[Unit]
+Description=Prometheus node_exporter (host metrics for the OpenCode proxy dashboard)
+Documentation=https://github.com/prometheus/node_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+ExecStart=/usr/local/bin/node_exporter \
+    --web.listen-address=127.0.0.1:9100 \
+    --collector.processes
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the exporter only needs to read /proc and /sys.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryMax=96M
+
+[Install]
+WantedBy=multi-user.target
