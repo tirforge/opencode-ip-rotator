@@ -43,7 +43,7 @@ async def lifespan(application: FastAPI):
         # Serverless: no long-lived background thread. The catalog is fetched
         # once per instance at startup; `/v1/models` is served from memory.
         log.info("Running on Vercel; fetching model catalog once.")
-        refresh_models_once()
+        refresh_models_once(timeout=4)
     else:
         start_discovery()
     log.info("OpenCode proxy server started.")

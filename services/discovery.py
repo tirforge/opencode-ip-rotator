@@ -110,11 +110,11 @@ def get_default_model() -> str:
     return DEFAULT_MODEL
 
 
-def refresh_models_once() -> bool:
+def refresh_models_once(timeout: float = 10) -> bool:
     global _discovered_models, _last_refresh_attempt
     _last_refresh_attempt = time.time()
     try:
-        new_models = fetch_free_models(MODELS_URL, timeout=10)
+        new_models = fetch_free_models(MODELS_URL, timeout=timeout)
     except Exception as exc:
         log.warning(
             "Auto-discovery failed (%s); keeping %d last-known models.",
