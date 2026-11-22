@@ -52,7 +52,7 @@ from core.metrics import (
     prom_requests_total,
 )
 from services.discovery import get_default_model, get_discovered_models
-from services.proxy_pool import get_next_outbound_proxy
+from services.proxy_pool import get_next_outbound_proxy, rotate_warp_pool
 
 log = logging.getLogger("services.upstream")
 
@@ -910,17 +910,28 @@ ROTATION_COOLDOWN = float(os.environ.get("WARP_ROTATION_COOLDOWN", "10"))
 
 
 def request_warp_rotation(reason: str = "upstream 429") -> bool:
-    """Ask the local WARP rotator for a fresh egress IP (cooldown-guarded)."""
+    """Switch to a fresh WARP egress IP (cooldown-guarded).
+
+    When a multi-registration WARP pool is configured the switch is instant
+    and always lands on a different egress IP. Otherwise fall back to asking
+    the local warp-cli rotator to re-register.
+    """
     global _last_rotation_at
-    url = (WARP_ROTATOR_URL or "").strip()
-    if not url:
-        return False
-    endpoint = url.rstrip("/") + "/rotate"
     with _rotation_guard:
         now = time.time()
         if now - _last_rotation_at < ROTATION_COOLDOWN:
             return False
         _last_rotation_at = now
+
+    pool_proxy = rotate_warp_pool()
+    if pool_proxy:
+        log.info("Switched WARP exit to %s (%s)", pool_proxy, reason)
+        return True
+
+    url = (WARP_ROTATOR_URL or "").strip()
+    if not url:
+        return False
+    endpoint = url.rstrip("/") + "/rotate"
     try:
         req = urllib.request.Request(endpoint, data=b"", method="POST")
         with urllib.request.urlopen(req, timeout=240) as resp:

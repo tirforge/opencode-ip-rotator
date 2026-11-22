@@ -71,6 +71,16 @@ def _load_model_aliases() -> Dict[str, str]:
 MODEL_ALIASES = _load_model_aliases()
 
 WARP_ROTATOR_URL = os.environ.get("WARP_ROTATOR_URL", "http://warp-rotator:8001")
+# Comma-separated HTTP proxies that each exit through a different WARP
+# registration. Rotation switches between them instead of re-registering.
+WARP_POOL = [
+    proxy.strip()
+    for proxy in os.environ.get("WARP_POOL", "").split(",")
+    if proxy.strip()
+]
+WARP_POOL_STATE_FILE = Path(
+    os.environ.get("WARP_POOL_STATE_FILE", str(DEFAULT_DATA_DIR / "warp_pool_index"))
+)
 METRICS_DB_PATH = Path(
     os.environ.get("METRICS_DB_PATH", str(DEFAULT_DATA_DIR / "metrics.db"))
 )
