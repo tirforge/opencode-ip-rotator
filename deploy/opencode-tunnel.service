@@ -1,0 +1,19 @@
+[Unit]
+Description=Cloudflare quick tunnel for the OpenCode proxy dashboard
+After=network-online.target opencode-proxy.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/opencode-proxy
+Environment=TUNNEL_TARGET=http://127.0.0.1:8000
+Environment=TUNNEL_URL_FILE=/home/ubuntu/opencode-proxy/data/tunnel_url
+ExecStart=/home/ubuntu/opencode-proxy/scripts/quick_tunnel.sh
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

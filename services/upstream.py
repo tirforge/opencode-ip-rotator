@@ -36,10 +36,12 @@ from core.config import (
     SAFE_UPSTREAM_HEADERS,
     STREAM_TIMEOUT,
     TLS12_CIPHERS,
+    WARP_ADMIN_URL,
     WARP_ROTATOR_URL,
 )
 from core.db import (
     acquire_flow_lease,
+    record_rotation,
     record_usage,
     release_flow_lease,
 )
@@ -51,6 +53,7 @@ from core.metrics import (
     prom_requests_success,
     prom_requests_total,
 )
+from services import warp_admin
 from services.discovery import get_default_model, get_discovered_models
 from services.proxy_pool import get_next_outbound_proxy, rotate_warp_pool
 
@@ -907,14 +910,17 @@ def apply_reasoning_effort(
 _rotation_guard = threading.Lock()
 _last_rotation_at = 0.0
 ROTATION_COOLDOWN = float(os.environ.get("WARP_ROTATION_COOLDOWN", "10"))
+# warp-minimal needs a moment to enrol a fresh exit before it can serve.
+ROTATION_SETTLE_SECONDS = float(os.environ.get("WARP_ROTATION_SETTLE", "2.5"))
 
 
 def request_warp_rotation(reason: str = "upstream 429") -> bool:
     """Switch to a fresh WARP egress IP (cooldown-guarded).
 
-    When a multi-registration WARP pool is configured the switch is instant
-    and always lands on a different egress IP. Otherwise fall back to asking
-    the local warp-cli rotator to re-register.
+    Order of preference:
+    1. A configured pool of plain HTTP proxies (one WARP registration each).
+    2. The local warp-minimal admin API, which swaps one MASQUE exit.
+    3. The legacy warp-cli rotator service.
     """
     global _last_rotation_at
     with _rotation_guard:
@@ -927,6 +933,18 @@ def request_warp_rotation(reason: str = "upstream 429") -> bool:
     if pool_proxy:
         log.info("Switched WARP exit to %s (%s)", pool_proxy, reason)
         return True
+
+    if (WARP_ADMIN_URL or "").strip():
+        ok, detail = warp_admin.rotate_exit()
+        if not ok and detail == "no_standby":
+            ok, detail = warp_admin.recycle_pool()
+        if ok:
+            record_rotation(reason=f"auto: {reason} ({detail})")
+            log.info("Rotated warp-minimal exit (%s, %s)", detail, reason)
+            if ROTATION_SETTLE_SECONDS > 0:
+                time.sleep(ROTATION_SETTLE_SECONDS)
+            return True
+        log.warning("warp-minimal rotation failed (%s, %s)", detail, reason)
 
     url = (WARP_ROTATOR_URL or "").strip()
     if not url:

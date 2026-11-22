@@ -81,6 +81,12 @@ WARP_POOL = [
 WARP_POOL_STATE_FILE = Path(
     os.environ.get("WARP_POOL_STATE_FILE", str(DEFAULT_DATA_DIR / "warp_pool_index"))
 )
+# Local warp-minimal admin API (pool status + rotation).
+WARP_ADMIN_URL = os.environ.get("WARP_ADMIN_URL", "http://127.0.0.1:8789").strip()
+# File written by the quick-tunnel helper with the public trycloudflare URL.
+TUNNEL_URL_FILE = Path(
+    os.environ.get("TUNNEL_URL_FILE", str(DEFAULT_DATA_DIR / "tunnel_url"))
+)
 METRICS_DB_PATH = Path(
     os.environ.get("METRICS_DB_PATH", str(DEFAULT_DATA_DIR / "metrics.db"))
 )

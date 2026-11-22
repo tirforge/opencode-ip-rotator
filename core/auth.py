@@ -24,12 +24,14 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from core.keys import active_key_hashes, verify_key
+
 # Paths that stay reachable without a key.
 PUBLIC_PATHS = {"/health"}
 
 # Routes served to the browser dashboard after a key has been exchanged for a
 # cookie (the key itself is never stored in the cookie).
-DASHBOARD_PATHS = ("/dashboard", "/metrics")
+DASHBOARD_PATHS = ("/dashboard", "/metrics", "/api")
 
 COOKIE_NAME = "oc_proxy_session"
 COOKIE_MAX_AGE = 60 * 60 * 12  # 12 hours
@@ -79,8 +81,10 @@ def _extract_key(request: Request) -> Optional[str]:
     return None
 
 
-def _valid_session_cookie(cookie_value: str, keys: List[str]) -> bool:
-    return any(hmac.compare_digest(cookie_value, _key_fingerprint(k)) for k in keys)
+def _valid_session_cookie(cookie_value: str, keys: List[str], generated: List[str]) -> bool:
+    if any(hmac.compare_digest(cookie_value, _key_fingerprint(k)) for k in keys):
+        return True
+    return any(hmac.compare_digest(cookie_value, digest) for digest in generated)
 
 
 def client_ip(request: Request) -> str:
@@ -148,7 +152,8 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         keys = _configured_keys()
-        if not keys:
+        generated_hashes = active_key_hashes()
+        if not keys and not generated_hashes:
             if _IS_VERCEL:
                 return JSONResponse(
                     status_code=503,
@@ -182,11 +187,11 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
             )
 
         if supplied.startswith("cookie:"):
-            if not _valid_session_cookie(supplied[7:], keys):
+            if not _valid_session_cookie(supplied[7:], keys, generated_hashes):
                 return _unauthorized("Dashboard session expired. Re-open it with ?key=<key>.")
             return await call_next(request)
 
-        if not _matches_any(supplied, keys):
+        if not _matches_any(supplied, keys) and verify_key(supplied) is None:
             return _unauthorized("Invalid API key.")
 
         allowed, retry_after = self.limiter.allow(
@@ -231,9 +236,14 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
 def auth_summary() -> Dict[str, object]:
     """Non-sensitive description of the active security posture."""
     keys = _configured_keys()
+    try:
+        generated = len(active_key_hashes())
+    except Exception:  # noqa: BLE001
+        generated = 0
     return {
-        "api_key_required": bool(keys) or _IS_VERCEL,
+        "api_key_required": bool(keys) or generated > 0 or _IS_VERCEL,
         "configured_keys": len(keys),
+        "generated_keys": generated,
         "rate_limit_per_minute": int(os.environ.get("PROXY_RATE_LIMIT", "60")),
         "ip_allowlist_entries": len(
             [p for p in os.environ.get("PROXY_IP_ALLOWLIST", "").split(",") if p.strip()]

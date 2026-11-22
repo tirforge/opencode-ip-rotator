@@ -101,6 +101,31 @@ def init_db() -> None:
         )
         """
     )
+    db_execute(
+        """
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            key_hash TEXT NOT NULL UNIQUE,
+            prefix TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            last_used_at REAL DEFAULT 0,
+            request_count INTEGER DEFAULT 0,
+            revoked INTEGER DEFAULT 0
+        )
+        """
+    )
+    db_execute(
+        """
+        CREATE TABLE IF NOT EXISTS rotation_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp REAL NOT NULL,
+            old_ip TEXT,
+            new_ip TEXT,
+            reason TEXT
+        )
+        """
+    )
     log.info("Database initialized at %s", METRICS_DB_PATH)
 
 
@@ -219,3 +244,42 @@ def load_all_usage() -> Dict[str, Dict[str, Any]]:
     except Exception as exc:
         log.warning("Failed to load model usage: %s", exc)
         return {}
+
+
+def record_rotation(old_ip: str = "", new_ip: str = "", reason: str = "manual") -> None:
+    try:
+        db_execute(
+            "INSERT INTO rotation_log (timestamp, old_ip, new_ip, reason) VALUES (?, ?, ?, ?)",
+            (time.time(), old_ip, new_ip, reason),
+        )
+    except Exception as exc:
+        log.warning("Failed to record rotation: %s", exc)
+
+
+def count_rotations() -> int:
+    try:
+        rows = db_fetchall("SELECT COUNT(*) FROM rotation_log")
+        return int(rows[0][0]) if rows else 0
+    except Exception as exc:
+        log.warning("Failed to count rotations: %s", exc)
+        return 0
+
+
+def recent_rotations(limit: int = 10) -> List[Dict[str, Any]]:
+    try:
+        rows = db_fetchall(
+            "SELECT timestamp, old_ip, new_ip, reason FROM rotation_log ORDER BY id DESC LIMIT ?",
+            (max(1, limit),),
+        )
+        return [
+            {
+                "timestamp": row[0],
+                "old_ip": row[1],
+                "new_ip": row[2],
+                "reason": row[3],
+            }
+            for row in rows
+        ]
+    except Exception as exc:
+        log.warning("Failed to load rotations: %s", exc)
+        return []

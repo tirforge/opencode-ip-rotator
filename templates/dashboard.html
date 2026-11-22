@@ -1,248 +1,782 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f4f5f2">
-    <title>OpenCode Vercel Proxy</title>
-    <style>
-        :root {
-            color-scheme: light;
-            font-family: "Segoe UI", "Noto Sans", Arial, sans-serif;
-            color: #202824;
-            background: #f4f5f2;
-            font-synthesis: none;
-            text-rendering: optimizeLegibility;
-            --muted: #65716b;
-            --line: #dce1dc;
-            --surface: #fff;
-            --warning: #a45b18;
-        }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#070b14">
+<title>OpenCode Proxy · Control Room</title>
+<style>
+  :root{
+    --bg:#070b14;
+    --bg-2:#0b1220;
+    --panel:rgba(255,255,255,.035);
+    --panel-solid:#0e1626;
+    --line:rgba(255,255,255,.085);
+    --line-strong:rgba(255,255,255,.14);
+    --text:#e8edf7;
+    --muted:#8b98ad;
+    --dim:#5d6b80;
+    --violet:#8b5cf6;
+    --cyan:#22d3ee;
+    --green:#34d399;
+    --amber:#fbbf24;
+    --red:#f87171;
+    --radius:18px;
+    --shadow:0 20px 50px -24px rgba(0,0,0,.9);
+    --font:"Inter","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    font-family:var(--font);
+    color:var(--text);
+    background:
+      radial-gradient(900px 520px at 12% -8%, rgba(139,92,246,.20), transparent 62%),
+      radial-gradient(820px 520px at 92% 0%, rgba(34,211,238,.14), transparent 60%),
+      radial-gradient(700px 600px at 50% 110%, rgba(52,211,153,.08), transparent 65%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:52px 52px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 30%,transparent 75%);
+  }
+  a{color:var(--cyan);text-decoration:none}
+  button{font:inherit;color:inherit;cursor:pointer}
+  ::selection{background:rgba(139,92,246,.45)}
+  .shell{width:min(100% - 36px,1240px);margin-inline:auto;position:relative;z-index:1}
 
-        * { box-sizing: border-box; }
-        body { min-width: 320px; min-height: 100vh; margin: 0; }
-        button, table { font: inherit; }
-        .shell { width: min(100% - 40px, 960px); margin-inline: auto; }
-        header { border-bottom: 1px solid var(--line); background: var(--surface); }
-        .topbar { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-        .brand { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.02em; }
-        main { padding-block: 42px 64px; }
-        .intro { margin-bottom: 26px; }
-        h1 { margin: 0; font-size: clamp(23px, 4vw, 30px); line-height: 1.2; letter-spacing: -0.035em; }
-        .intro p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
-        .overview { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(110px, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-        .overview-item { min-width: 0; padding: 20px; }
-        .overview-item + .overview-item { border-left: 1px solid var(--line); }
-        .label { margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 550; }
-        .value { margin: 0; font-size: 24px; line-height: 1.25; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
-        .value.mono { overflow-wrap: anywhere; font-family: "Cascadia Code", "Cascadia Mono", Consolas, monospace; font-size: 19px; letter-spacing: -0.04em; }
-        .detail { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
-        .warning { color: var(--warning); }
-        .sections { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr); gap: 18px; margin-top: 24px; }
-        .panel { min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-        .panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 17px 18px 13px; }
-        h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.015em; }
-        .panel-note { color: var(--muted); font-size: 12px; }
-        .table-wrap { width: 100%; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-        th, td { padding: 11px 18px; border-top: 1px solid #edf0ed; }
-        th { color: var(--muted); font-size: 11px; font-weight: 550; }
-        td { font-variant-numeric: tabular-nums; }
-        th:last-child, td:last-child { text-align: right; }
-        .model-name { overflow-wrap: anywhere; font-weight: 550; }
-        .empty { padding: 20px 18px; border-top: 1px solid #edf0ed; color: var(--muted); font-size: 13px; line-height: 1.5; }
-        .history { margin: 0; padding: 0 18px; list-style: none; }
-        .history-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 4px 12px; padding: 13px 0; border-top: 1px solid #edf0ed; }
-        .history-ip { min-width: 0; overflow-wrap: anywhere; font-family: "Cascadia Code", "Cascadia Mono", Consolas, monospace; font-size: 13px; }
-        .history-place, .history-time { color: var(--muted); font-size: 12px; }
-        .history-time { grid-column: 1 / -1; }
-        .message { min-height: 20px; margin: 18px 0 0; color: var(--muted); font-size: 12px; }
-        .message[data-state="error"] { color: #9a3e2b; }
+  /* ---------- header ---------- */
+  header{position:sticky;top:0;z-index:30;backdrop-filter:blur(18px) saturate(140%);background:linear-gradient(180deg,rgba(7,11,20,.92),rgba(7,11,20,.66));border-bottom:1px solid var(--line)}
+  .topbar{display:flex;align-items:center;gap:18px;min-height:72px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--violet),var(--cyan));box-shadow:0 8px 26px -8px rgba(139,92,246,.85);flex:none}
+  .logo svg{width:22px;height:22px;color:#060a12}
+  .brand-text{min-width:0}
+  .brand h1{margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+  .brand p{margin:2px 0 0;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:12px;color:var(--muted);white-space:nowrap}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(52,211,153,.16);animation:pulse 2.4s ease-in-out infinite}
+  .dot.bad{background:var(--red);box-shadow:0 0 0 3px rgba(248,113,113,.16)}
+  .dot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(251,191,36,.16)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .icon-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);font-size:12.5px;transition:.18s}
+  .icon-btn:hover{background:rgba(255,255,255,.08);border-color:var(--line-strong);transform:translateY(-1px)}
+  .icon-btn svg{width:15px;height:15px}
 
-        @media (max-width: 720px) {
-            .overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .overview-item + .overview-item { border-left: 0; }
-            .overview-item:nth-child(even) { border-left: 1px solid var(--line); }
-            .overview-item:nth-child(n + 3) { border-top: 1px solid var(--line); }
-            .sections { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 420px) {
-            .shell { width: min(100% - 28px, 960px); }
-            main { padding-top: 30px; }
-            .overview-item { padding: 15px; }
-            .value { font-size: 21px; }
-            .value.mono { font-size: 16px; }
-            .panel-heading { padding-inline: 14px; }
-            th, td { padding-inline: 14px; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { scroll-behavior: auto !important; }
-        }
-    </style>
+  /* ---------- layout ---------- */
+  main{padding:30px 0 70px}
+  .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:22px;flex-wrap:wrap}
+  .hero h2{margin:0;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.035em;font-weight:750;line-height:1.1}
+  .hero p{margin:8px 0 0;color:var(--muted);font-size:13.5px;max-width:62ch}
+  .tunnel{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(34,211,238,.06);max-width:100%}
+  .tunnel .label{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);font-weight:700}
+  .tunnel code{font-family:var(--mono);font-size:12px;color:var(--text);max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin-bottom:16px}
+  .stat{position:relative;overflow:hidden;padding:17px 17px 15px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow)}
+  .stat::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.05),transparent 45%);pointer-events:none}
+  .stat .k{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:650}
+  .stat .k svg{width:13px;height:13px;opacity:.8}
+  .stat .v{margin:10px 0 0;font-size:26px;font-weight:750;letter-spacing:-.04em;font-variant-numeric:tabular-nums;line-height:1.05}
+  .stat .s{margin:6px 0 0;font-size:11.5px;color:var(--dim)}
+  .stat.accent{background:linear-gradient(150deg,rgba(139,92,246,.18),rgba(34,211,238,.06) 60%,transparent);border-color:rgba(139,92,246,.32)}
+  .mono{font-family:var(--mono);letter-spacing:-.02em}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:16px}
+  .col{display:flex;flex-direction:column;gap:16px;min-width:0}
+  .panel{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow);overflow:hidden}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .panel-head h3{margin:0;font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+  .panel-head .hint{font-size:11.5px;color:var(--dim)}
+  .panel-head .spacer{flex:1}
+  .panel-body{padding:16px 18px}
+  .panel-body.tight{padding:10px 18px 14px}
+
+  /* egress */
+  .egress{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .egress .ip{font-family:var(--mono);font-size:clamp(17px,2.2vw,23px);font-weight:600;letter-spacing:-.03em;overflow-wrap:anywhere}
+  .egress .meta{color:var(--dim);font-size:11.5px;margin-top:4px}
+  .btn-primary{display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border:0;border-radius:12px;font-weight:700;font-size:13px;color:#080c14;background:linear-gradient(135deg,#a78bfa,#22d3ee);box-shadow:0 12px 30px -12px rgba(34,211,238,.7);transition:.18s;white-space:nowrap}
+  .btn-primary:hover{transform:translateY(-1px);filter:brightness(1.06)}
+  .btn-primary:disabled{opacity:.65;cursor:wait;transform:none}
+  .btn-primary svg{width:15px;height:15px}
+  .spin{animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .exits{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
+  .exit{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+  .exit:last-child{border-bottom:0}
+  .exit .id{font-family:var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+  .exit .eip{font-family:var(--mono);font-size:11.5px;color:var(--text);overflow-wrap:anywhere}
+  .exit .served{color:var(--dim);font-size:11px;white-space:nowrap}
+  .badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid transparent}
+  .badge.healthy,.badge.in_use{color:var(--green);background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.25)}
+  .badge.cooldown,.badge.draining{color:var(--amber);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.25)}
+  .badge.starting{color:var(--muted);background:rgba(255,255,255,.06)}
+
+  /* chart */
+  .chart-wrap{position:relative;height:172px;margin-top:4px}
+  canvas{width:100%;height:100%;display:block}
+  .chart-legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:8px}
+  .chart-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .chart-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:12px}
+
+  /* table / feed */
+  .feed{max-height:330px;overflow:auto}
+  .row{display:grid;grid-template-columns:64px minmax(0,1fr) 58px 66px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:12px}
+  .row:last-child{border-bottom:0}
+  .row .t{color:var(--dim);font-family:var(--mono);font-size:11px}
+  .row .ep{font-weight:600;font-size:12px}
+  .row .ep small{display:block;color:var(--dim);font-weight:400;font-size:10.5px;margin-top:1px}
+  .row .ms{color:var(--muted);text-align:right;font-family:var(--mono);font-size:11px}
+  .code{display:inline-block;min-width:44px;text-align:center;padding:2px 6px;border-radius:7px;font-family:var(--mono);font-size:10.5px;font-weight:700}
+  .code.ok{color:var(--green);background:rgba(52,211,153,.1)}
+  .code.bad{color:var(--red);background:rgba(248,113,113,.1)}
+  .empty{padding:22px 4px;text-align:center;color:var(--dim);font-size:12.5px}
+
+  /* models */
+  .model{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+  .model:last-child{border-bottom:0}
+  .model .n{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .model .c{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .bar{grid-column:1/-1;height:5px;border-radius:99px;background:rgba(255,255,255,.06);overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--cyan));transition:width .6s cubic-bezier(.2,.7,.2,1)}
+
+  /* keys */
+  .keyform{display:flex;gap:8px;margin-bottom:12px}
+  .keyform input{flex:1;min-width:0;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:var(--text);font-size:12.5px;outline:none}
+  .keyform input:focus{border-color:rgba(139,92,246,.6);box-shadow:0 0 0 3px rgba(139,92,246,.15)}
+  .keyform button{padding:9px 13px;border:0;border-radius:10px;background:rgba(139,92,246,.9);color:#fff;font-weight:650;font-size:12px}
+  .keyform button:hover{background:rgba(139,92,246,1)}
+  .key{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.045);align-items:center}
+  .key:last-child{border-bottom:0}
+  .key .lbl{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .key .pfx{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .key .sub{font-size:10.5px;color:var(--dim);margin-top:2px}
+  .key .acts{display:flex;gap:6px}
+  .mini{padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:10.5px;color:var(--muted);transition:.15s}
+  .mini:hover{background:rgba(255,255,255,.09);color:var(--text)}
+  .mini.danger{color:#fca5a5;border-color:rgba(248,113,113,.28)}
+  .mini.danger:hover{background:rgba(248,113,113,.14)}
+  .mini.confirm{color:#0a0f18;background:var(--red);border-color:var(--red);font-weight:700}
+
+  /* snippet */
+  pre.snippet{margin:0;padding:12px 13px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid var(--line);overflow:auto;font-family:var(--mono);font-size:11.5px;line-height:1.6;color:#c7d2e5}
+  pre.snippet .tok{color:var(--cyan)}
+  .copy-line{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px;color:var(--dim);font-size:11px}
+
+  /* rotation history */
+  .rot{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+  .rot:last-child{border-bottom:0}
+  .rot .arrow{color:var(--violet)}
+  .rot time{margin-left:auto;color:var(--dim);font-family:var(--mono);font-size:10.5px}
+
+  /* footer */
+  footer{border-top:1px solid var(--line);padding:18px 0 30px;color:var(--dim);font-size:11.5px}
+  footer .shell{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+
+  /* toast + modal */
+  .toasts{position:fixed;right:18px;bottom:18px;z-index:80;display:flex;flex-direction:column;gap:8px;max-width:min(92vw,380px)}
+  .toast{padding:11px 14px;border-radius:12px;border:1px solid var(--line-strong);background:rgba(14,22,38,.96);box-shadow:0 18px 40px -16px #000;font-size:12.5px;animation:slide .25s ease-out}
+  .toast.ok{border-color:rgba(52,211,153,.4)}
+  .toast.err{border-color:rgba(248,113,113,.45)}
+  .toast b{display:block;font-size:12px;margin-bottom:2px}
+  @keyframes slide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .overlay{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:20px;background:rgba(3,6,12,.72);backdrop-filter:blur(6px)}
+  .overlay.show{display:grid}
+  .modal{width:min(520px,100%);border-radius:20px;border:1px solid var(--line-strong);background:linear-gradient(160deg,#101a2d,#0a1120);box-shadow:0 40px 90px -30px #000;padding:22px}
+  .modal h4{margin:0 0 6px;font-size:16px}
+  .modal p{margin:0 0 14px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .modal .secret{display:flex;gap:8px;margin:12px 0}
+  .modal .secret code{flex:1;min-width:0;padding:12px;border-radius:12px;border:1px dashed rgba(139,92,246,.5);background:rgba(139,92,246,.08);font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+  .modal .row-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+  .modal .warn{color:var(--amber);font-size:11.5px;margin-top:10px}
+  .gate{position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:20px;background:var(--bg)}
+  .gate.show{display:grid}
+  .gate .box{width:min(420px,100%);text-align:center}
+  .gate h3{margin:0 0 6px;font-size:20px}
+  .gate p{margin:0 0 16px;color:var(--muted);font-size:13px}
+  .gate input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.35);color:var(--text);font-family:var(--mono);font-size:13px;outline:none}
+  .gate input:focus{border-color:rgba(139,92,246,.6)}
+  .gate button{margin-top:10px;width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#080c14;font-weight:750}
+
+  .skeleton{color:transparent!important;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06),rgba(255,255,255,.12),rgba(255,255,255,.06));background-size:200% 100%;animation:shimmer 1.4s infinite}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+  @media (max-width:1080px){
+    .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid{grid-template-columns:1fr}
+  }
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1240px)}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .topbar{min-height:64px;gap:10px}
+    .brand p{display:none}
+    .hide-sm{display:none!important}
+    .tunnel code{max-width:60vw}
+    .row{grid-template-columns:52px minmax(0,1fr) 52px}
+    .row .ms{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+</style>
 </head>
 <body>
-    <header>
-        <div class="shell topbar">
-            <p class="brand">OpenCode Vercel Proxy</p>
+<header>
+  <div class="shell topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5"/><path d="M12 12v10"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>OpenCode Proxy</h1>
+        <p>WARP rotating gateway · free model bridge</p>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill" id="statusPill"><span class="dot" id="statusDot"></span><span id="statusText">Connecting</span></span>
+    <span class="pill hide-sm">Uptime <b class="mono" id="uptime" style="color:var(--text);font-weight:600">—</b></span>
+    <button class="icon-btn" id="refreshBtn" title="Refresh now" aria-label="Refresh now">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="shell">
+  <div class="hero">
+    <div>
+      <h2>Control room</h2>
+      <p>Live traffic, WARP egress exits, request rotation and API access — everything in one place.</p>
+    </div>
+    <div class="tunnel" id="tunnelChip" title="Click to copy the public URL">
+      <span class="label">Tunnel</span>
+      <code id="tunnelUrl">not connected</code>
+      <button class="mini" id="copyTunnel" aria-label="Copy tunnel URL">Copy</button>
+    </div>
+  </div>
+
+  <section class="stats" aria-label="Key metrics">
+    <div class="stat accent">
+      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Requests</div>
+      <div class="v mono" id="statRequests">—</div>
+      <div class="s" id="statRequestsSub">since start</div>
+    </div>
+    <div class="stat">
+      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m20 6-11 11-5-5"/></svg>Success rate</div>
+      <div class="v mono" id="statSuccess">—</div>
+      <div class="s" id="statSuccessSub">all time</div>
+    </div>
+    <div class="stat">
+      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>Active flows</div>
+      <div class="v mono" id="statFlows">—</div>
+      <div class="s">streaming now</div>
+    </div>
+    <div class="stat">
+      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Free models</div>
+      <div class="v mono" id="statModels">—</div>
+      <div class="s">discovered upstream</div>
+    </div>
+    <div class="stat">
+      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Last hour</div>
+      <div class="v mono" id="statHour">—</div>
+      <div class="s" id="statHourSub">requests</div>
+    </div>
+    <div class="stat">
+      <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>Rotations</div>
+      <div class="v mono" id="statRotations">—</div>
+      <div class="s">IP swaps performed</div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="col">
+      <section class="panel" aria-labelledby="egressTitle">
+        <div class="panel-head">
+          <h3 id="egressTitle">WARP egress</h3>
+          <span class="hint" id="poolHint">checking pool…</span>
+          <span class="spacer"></span>
+          <button class="btn-primary" id="rotateBtn">
+            <svg id="rotateIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+            <span id="rotateLabel">New IP</span>
+          </button>
         </div>
-    </header>
-
-    <main class="shell">
-        <div class="intro">
-            <h1>Network overview</h1>
-            <p>Current proxy traffic and free model availability.</p>
+        <div class="panel-body">
+          <div class="egress">
+            <div style="min-width:0;flex:1">
+              <div class="ip" id="egressIp">—</div>
+              <div class="meta" id="egressMeta">Resolving WARP egress…</div>
+            </div>
+            <div style="text-align:right">
+              <div class="mono" id="poolHealthy" style="font-size:20px;font-weight:700">—</div>
+              <div class="meta">healthy exits</div>
+            </div>
+          </div>
+          <div class="exits" id="exitList"></div>
+          <div id="rotHistory" style="margin-top:10px"></div>
         </div>
+      </section>
 
-        <section class="overview" aria-label="Current network metrics">
-            <div class="overview-item">
-                <p class="label">Public IP</p>
-                <p id="ip" class="value mono">Loading</p>
-                <p id="location" class="detail">Checking location</p>
-            </div>
-            <div class="overview-item">
-                <p class="label">Requests</p>
-                <p id="requests" class="value">—</p>
-                <p class="detail">Since service start</p>
-            </div>
-            <div class="overview-item">
-                <p class="label">Free models</p>
-                <p id="rotations" class="value">—</p>
-                <p class="detail">Discovered upstream</p>
-            </div>
-            <div class="overview-item">
-                <p class="label">429 responses</p>
-                <p id="ratelimits" class="value warning">—</p>
-                <p class="detail">Rate limit responses</p>
-            </div>
-        </section>
-
-        <div class="sections">
-            <section class="panel" aria-labelledby="usage-heading">
-                <div class="panel-heading">
-                    <h2 id="usage-heading">Model usage</h2>
-                    <span id="model-count" class="panel-note">—</span>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr><th scope="col">Model</th><th scope="col">Requests</th><th scope="col">Tokens</th></tr>
-                        </thead>
-                        <tbody id="usage-table-body"></tbody>
-                    </table>
-                </div>
-                <p id="usage-empty" class="empty">No model usage recorded yet.</p>
-            </section>
-
-            <section class="panel" aria-labelledby="history-heading">
-                <div class="panel-heading">
-                    <h2 id="history-heading">Available free models</h2>
-                    <span class="panel-note">Live catalog</span>
-                </div>
-                <ul id="ip-history" class="history"></ul>
-                <p id="history-empty" class="empty">No models discovered yet.</p>
-            </section>
+      <section class="panel" aria-labelledby="trafficTitle">
+        <div class="panel-head">
+          <h3 id="trafficTitle">Traffic</h3>
+          <span class="hint">requests per minute · last 30 min</span>
+          <span class="spacer"></span>
+          <span class="pill" style="padding:4px 9px"><span class="dot" id="liveDot"></span>live</span>
         </div>
+        <div class="panel-body">
+          <div class="chart-wrap">
+            <canvas id="chart" aria-label="Requests per minute chart"></canvas>
+            <div class="chart-empty" id="chartEmpty">Waiting for traffic…</div>
+          </div>
+          <div class="chart-legend"><span><i style="background:linear-gradient(90deg,#8b5cf6,#22d3ee)"></i>successful</span><span><i style="background:#f87171"></i>errors</span></div>
+        </div>
+      </section>
 
-        <p id="dashboard-message" class="message" role="status" aria-live="polite"></p>
-    </main>
+      <section class="panel" aria-labelledby="feedTitle">
+        <div class="panel-head">
+          <h3 id="feedTitle">Live requests</h3>
+          <span class="hint">most recent first</span>
+        </div>
+        <div class="panel-body tight feed" id="feed"></div>
+      </section>
+    </div>
 
-    <script>
-        const numberFormat = new Intl.NumberFormat();
-        const usageBody = document.getElementById("usage-table-body");
-        const historyList = document.getElementById("ip-history");
+    <div class="col">
+      <section class="panel" aria-labelledby="keysTitle">
+        <div class="panel-head">
+          <h3 id="keysTitle">API keys</h3>
+          <span class="hint" id="keysHint">—</span>
+        </div>
+        <div class="panel-body">
+          <form class="keyform" id="keyForm">
+            <input id="keyLabel" placeholder="Key label (e.g. laptop)" maxlength="64" autocomplete="off">
+            <button type="submit">Generate</button>
+          </form>
+          <div id="keyList"></div>
+          <div class="empty" id="keyEmpty" hidden>No generated keys yet. The master key from <span class="mono">PROXY_API_KEY</span> still works.</div>
+        </div>
+      </section>
 
-        function formatCount(value) {
-            return Number.isSafeInteger(value) ? numberFormat.format(value) : "—";
+      <section class="panel" aria-labelledby="modelsTitle">
+        <div class="panel-head">
+          <h3 id="modelsTitle">Model usage</h3>
+          <span class="hint" id="modelsHint">—</span>
+        </div>
+        <div class="panel-body tight" id="modelList"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="quickTitle">
+        <div class="panel-head">
+          <h3 id="quickTitle">Quick start</h3>
+          <span class="hint">OpenAI compatible</span>
+        </div>
+        <div class="panel-body">
+          <div class="copy-line"><span>Base URL</span><button class="mini" id="copyBase">Copy</button></div>
+          <pre class="snippet" id="baseUrl">…</pre>
+          <div class="copy-line" style="margin-top:12px"><span>Test request</span><button class="mini" id="copyCurl">Copy</button></div>
+          <pre class="snippet" id="curlSnippet">…</pre>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="shell">
+    <span>OpenCode Proxy</span>
+    <span>·</span>
+    <span id="footPool">WARP pool: —</span>
+    <span>·</span>
+    <span id="footSecurity">security: —</span>
+    <span class="spacer"></span>
+    <span class="mono" id="footStamp">—</span>
+  </div>
+</footer>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<div class="overlay" id="keyModal" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
+  <div class="modal">
+    <h4 id="keyModalTitle">API key created</h4>
+    <p>Copy it now — for security only a hash is stored, so it cannot be shown again.</p>
+    <div class="secret"><code id="newKeyValue">—</code></div>
+    <div class="row-actions">
+      <button class="icon-btn" id="copyNewKey">Copy key</button>
+      <button class="icon-btn" id="closeKeyModal" style="background:rgba(139,92,246,.85);border-color:transparent;color:#fff">Done</button>
+    </div>
+    <p class="warn">Use it as <span class="mono">Authorization: Bearer &lt;key&gt;</span> or <span class="mono">x-api-key</span>.</p>
+  </div>
+</div>
+
+<div class="gate" id="gate">
+  <div class="box">
+    <h3>Dashboard locked</h3>
+    <p>Enter your proxy API key to open the control room.</p>
+    <input id="gateKey" type="password" placeholder="API key" autocomplete="current-password">
+    <button id="gateBtn">Unlock</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const nf = new Intl.NumberFormat();
+  const state = { overview: null, keys: [], uptimeBase: null, uptimeAt: 0, loading: false, hidden: false };
+
+  /* ---------- helpers ---------- */
+  const fmt = (n) => (typeof n === "number" && isFinite(n) ? nf.format(Math.round(n)) : "—");
+  const pct = (n) => (typeof n === "number" && isFinite(n) ? n.toFixed(1) + "%" : "—");
+  function dur(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return "—";
+    const d = Math.floor(seconds / 86400), h = Math.floor((seconds % 86400) / 3600),
+          m = Math.floor((seconds % 3600) / 60), s = Math.floor(seconds % 60);
+    if (d) return `${d}d ${h}h ${m}m`;
+    if (h) return `${h}h ${m}m ${s}s`;
+    if (m) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+  function ago(ts) {
+    if (!ts) return "never";
+    const diff = Math.max(0, Date.now() / 1000 - ts);
+    if (diff < 60) return `${Math.floor(diff)}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  }
+  const clock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function setText(id, value) { const el = $(id); if (el) el.textContent = value; }
+
+  function toast(title, message, kind = "ok") {
+    const el = document.createElement("div");
+    el.className = "toast " + kind;
+    el.innerHTML = `<b>${esc(title)}</b>${esc(message)}`;
+    $("toasts").appendChild(el);
+    setTimeout(() => { el.style.opacity = "0"; el.style.transform = "translateY(6px)"; setTimeout(() => el.remove(), 250); }, 4200);
+  }
+
+  async function copy(text, label = "Copied") {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    toast(label, "Copied to clipboard.");
+  }
+
+  /* ---------- data ---------- */
+  async function api(path, options = {}) {
+    const res = await fetch(path, { cache: "no-store", credentials: "same-origin", ...options });
+    if (res.status === 401) { $("gate").classList.add("show"); throw new Error("unauthorized"); }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  function applyOverview(data) {
+    state.overview = data;
+    state.uptimeBase = data.uptime_seconds;
+    state.uptimeAt = Date.now();
+
+    const totals = data.totals || {};
+    const lastHour = totals.last_hour || {};
+    setText("statRequests", fmt(totals.requests));
+    setText("statRequestsSub", `${fmt(totals.successful)} ok · ${fmt(totals.failed)} failed`);
+    setText("statSuccess", pct(totals.success_rate));
+    setText("statSuccessSub", `${fmt(totals.rate_limited)} rate limited`);
+    setText("statFlows", fmt(totals.active_flows));
+    setText("statModels", fmt((data.models || {}).count));
+    setText("statHour", fmt(lastHour.requests));
+    setText("statHourSub", `${fmt(lastHour.errors)} errors · 60 min`);
+    setText("statRotations", fmt((data.rotations || {}).count));
+
+    const pool = data.pool || {};
+    const ips = (data.egress || {}).ips || [];
+    setText("egressIp", ips[0] || "No egress IP");
+    setText("egressMeta", pool.online
+      ? `${pool.healthy}/${pool.active} exits healthy · ${pool.stack || "masque"} · ${pool.cooling_down || 0} cooling down`
+      : "WARP pool offline");
+    setText("poolHealthy", `${pool.healthy ?? 0}/${pool.active ?? 0}`);
+    setText("poolHint", pool.online ? "live pool" : "pool unreachable");
+    $("statusDot").className = "dot " + (pool.online && (pool.healthy > 0) ? "" : "bad");
+    setText("statusText", pool.online ? "Operational" : "Degraded");
+    setText("footPool", `WARP pool: ${pool.healthy || 0}/${pool.active || 0} healthy · ${(ips.length || 0)} egress IPs`);
+
+    const security = data.security || {};
+    setText("footSecurity", `security: ${security.configured_keys || 0} master + ${security.generated_keys || 0} generated · ${security.rate_limit_per_minute || 0}/min`);
+    setText("footStamp", new Date((data.now || Date.now() / 1000) * 1000).toLocaleString());
+
+    renderExits(pool.exits || []);
+    renderRotations((data.rotations || {}).recent || []);
+    renderFeed(data.events || []);
+    renderModels(data.models || {});
+    drawChart(data.series || []);
+
+    const tunnel = data.tunnel || {};
+    setText("tunnelUrl", tunnel.url || "not connected");
+    $("tunnelChip").style.opacity = tunnel.url ? "1" : ".7";
+    $("copyTunnel").disabled = !tunnel.url;
+
+    const origin = location.origin;
+    $("baseUrl").textContent = origin + "/v1";
+    $("curlSnippet").textContent =
+      `curl ${origin}/v1/chat/completions \\\n  -H "Authorization: Bearer $PROXY_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"deepseek-v4.1-flash-free","messages":[{"role":"user","content":"hi"}]}'`;
+    $("refreshBtn").classList.remove("spin");
+  }
+
+  function renderExits(exits) {
+    const box = $("exitList");
+    if (!exits.length) { box.innerHTML = `<div class="empty">No exits reported by the WARP pool.</div>`; return; }
+    box.innerHTML = exits.map((e) => `
+      <div class="exit">
+        <span class="dot ${e.state === "healthy" || e.state === "in_use" ? "" : "warn"}" style="width:7px;height:7px"></span>
+        <div style="min-width:0">
+          <div class="eip">${esc(e.ip || "assigning…")}</div>
+          <div class="id">${esc(e.id || "")}</div>
+        </div>
+        <div style="text-align:right">
+          <span class="badge ${esc(e.state || "starting")}">${esc(e.state || "starting")}</span>
+          <div class="served">${fmt(e.served || 0)} tunnels</div>
+        </div>
+      </div>`).join("");
+  }
+
+  function renderRotations(items) {
+    const box = $("rotHistory");
+    if (!items.length) { box.innerHTML = ""; return; }
+    box.innerHTML = `<div class="hint" style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Recent rotations</div>` +
+      items.map((r) => `
+        <div class="rot">
+          <span class="mono">${esc(r.old_ip || "—")}</span>
+          <span class="arrow">→</span>
+          <span class="mono">${esc(r.new_ip || "—")}</span>
+          <time>${esc(ago(r.timestamp))}</time>
+        </div>`).join("");
+  }
+
+  function renderFeed(events) {
+    const box = $("feed");
+    if (!events.length) { box.innerHTML = `<div class="empty">No requests yet. Point a client at <span class="mono">/v1</span> to see live traffic.</div>`; return; }
+    box.innerHTML = events.map((e) => `
+      <div class="row">
+        <span class="t">${esc(clock(e.at))}</span>
+        <span class="ep">${esc(e.endpoint)}<small>${esc(e.client || "client")}</small></span>
+        <span class="code ${e.ok ? "ok" : "bad"}">${esc(e.status)}</span>
+        <span class="ms">${e.duration_ms >= 1000 ? (e.duration_ms / 1000).toFixed(1) + "s" : Math.round(e.duration_ms) + "ms"}</span>
+      </div>`).join("");
+  }
+
+  function renderModels(models) {
+    const usage = models.usage || {};
+    const entries = Object.entries(usage).sort((a, b) => (b[1].requests || 0) - (a[1].requests || 0));
+    setText("modelsHint", `${models.count || 0} available`);
+    const box = $("modelList");
+    if (!entries.length) { box.innerHTML = `<div class="empty">No usage recorded yet.</div>`; return; }
+    const max = Math.max(...entries.map(([, u]) => u.requests || 0), 1);
+    box.innerHTML = entries.slice(0, 8).map(([name, u]) => `
+      <div class="model">
+        <span class="n" title="${esc(name)}">${esc(name)}</span>
+        <span class="c">${fmt(u.requests)} req</span>
+        <span class="bar"><i style="width:${Math.max(4, ((u.requests || 0) / max) * 100)}%"></i></span>
+      </div>`).join("");
+  }
+
+  /* ---------- chart ---------- */
+  function drawChart(series) {
+    const canvas = $("chart");
+    const wrap = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const total = series.reduce((sum, p) => sum + p.total, 0);
+    $("chartEmpty").style.display = total ? "none" : "grid";
+    if (!series.length) return;
+
+    const pad = { l: 6, r: 6, t: 10, b: 18 };
+    const max = Math.max(1, ...series.map((p) => p.total));
+    const innerW = w - pad.l - pad.r, innerH = h - pad.t - pad.b;
+    const step = innerW / Math.max(1, series.length);
+
+    ctx.strokeStyle = "rgba(255,255,255,.06)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 3; i++) {
+      const y = pad.t + (innerH / 3) * i;
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    }
+
+    const grad = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
+    grad.addColorStop(0, "rgba(139,92,246,.85)");
+    grad.addColorStop(1, "rgba(34,211,238,.45)");
+
+    const bw = Math.max(2, Math.min(16, step * 0.62));
+    series.forEach((p, i) => {
+      const x = pad.l + i * step + (step - bw) / 2;
+      const okH = (p.ok / max) * innerH;
+      const errH = (p.error / max) * innerH;
+      if (p.ok) {
+        ctx.fillStyle = grad;
+        const y = pad.t + innerH - okH;
+        const r = Math.min(4, bw / 2);
+        ctx.beginPath(); ctx.roundRect(x, y, bw, okH, [r, r, 0, 0]); ctx.fill();
+      }
+      if (p.error) {
+        ctx.fillStyle = "rgba(248,113,113,.9)";
+        const y = pad.t + innerH - okH - errH;
+        ctx.beginPath(); ctx.roundRect(x, y, bw, Math.max(2, errH), [r, r, 0, 0]); ctx.fill();
+      }
+    });
+
+    ctx.fillStyle = "rgba(139,152,173,.75)";
+    ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = "left";
+    ctx.fillText("-30m", pad.l, h - 4);
+    ctx.textAlign = "right";
+    ctx.fillText("now", w - pad.r, h - 4);
+  }
+
+  /* ---------- keys ---------- */
+  function renderKeys(keys) {
+    state.keys = keys;
+    const box = $("keyList");
+    setText("keysHint", `${keys.filter((k) => !k.revoked).length} active`);
+    const live = keys.filter((k) => !k.revoked);
+    $("keyEmpty").hidden = live.length > 0;
+    box.innerHTML = live.map((k) => `
+      <div class="key" data-id="${esc(k.id)}">
+        <div style="min-width:0">
+          <div class="lbl">${esc(k.label)}</div>
+          <div class="pfx">${esc(k.prefix)}…</div>
+          <div class="sub">${fmt(k.request_count || 0)} req · last used ${esc(ago(k.last_used_at))}</div>
+        </div>
+        <div class="acts">
+          <button class="mini danger" data-revoke="${esc(k.id)}">Revoke</button>
+        </div>
+      </div>`).join("");
+
+    box.querySelectorAll("[data-revoke]").forEach((btn) => {
+      let armed = false;
+      btn.addEventListener("click", async () => {
+        if (!armed) {
+          armed = true; btn.classList.add("confirm"); btn.textContent = "Confirm?";
+          setTimeout(() => { if (armed) { armed = false; btn.classList.remove("confirm"); btn.textContent = "Revoke"; } }, 3500);
+          return;
         }
+        btn.disabled = true;
+        try {
+          const data = await api("/api/keys/" + encodeURIComponent(btn.dataset.revoke), { method: "DELETE" });
+          renderKeys(data.keys || []);
+          toast("Key revoked", "The key can no longer authenticate.");
+        } catch (e) { toast("Revoke failed", String(e.message || e), "err"); btn.disabled = false; }
+      });
+    });
+  }
 
-        function setText(id, value) {
-            document.getElementById(id).textContent = value;
-        }
+  async function loadKeys() {
+    try {
+      const data = await api("/api/keys");
+      renderKeys(data.keys || []);
+    } catch (e) { /* handled by api() */ }
+  }
 
-        function createCell(value, className = "") {
-            const cell = document.createElement("td");
-            cell.textContent = value;
-            if (className) cell.className = className;
-            return cell;
-        }
+  /* ---------- actions ---------- */
+  async function rotate() {
+    const btn = $("rotateBtn"), icon = $("rotateIcon"), label = $("rotateLabel");
+    btn.disabled = true; icon.classList.add("spin"); label.textContent = "Rotating…";
+    try {
+      const data = await api("/api/ip/rotate", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (data.ok) {
+        toast("New WARP IP", `${data.old_ip || "—"} → ${data.new_ip || "—"}`);
+      } else {
+        toast("Rotation unavailable", `Pool answered: ${data.reason || "unknown"}`, "err");
+      }
+      await refresh();
+    } catch (e) {
+      toast("Rotation failed", String(e.message || e), "err");
+    } finally {
+      btn.disabled = false; icon.classList.remove("spin"); label.textContent = "New IP";
+    }
+  }
 
-        function renderUsage(modelUsage) {
-            usageBody.replaceChildren();
-            const models = Object.entries(modelUsage || {})
-                .sort(([, left], [, right]) => (right.requests || 0) - (left.requests || 0));
-            setText("model-count", `${models.length} ${models.length === 1 ? "model" : "models"}`);
-            document.getElementById("usage-empty").hidden = models.length !== 0;
+  async function generateKey(event) {
+    event.preventDefault();
+    const input = $("keyLabel");
+    const label = (input.value || "dashboard").trim() || "dashboard";
+    try {
+      const data = await api("/api/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label }) });
+      const created = data.key || {};
+      $("newKeyValue").textContent = created.key || "";
+      $("keyModal").classList.add("show");
+      input.value = "";
+      renderKeys(data.keys || []);
+    } catch (e) { toast("Could not create key", String(e.message || e), "err"); }
+  }
 
-            for (const [name, usage] of models) {
-                const row = document.createElement("tr");
-                row.append(
-                    createCell(name, "model-name"),
-                    createCell(formatCount(usage.requests)),
-                    createCell(formatCount(usage.total_tokens)),
-                );
-                usageBody.append(row);
-            }
-        }
+  /* ---------- loop ---------- */
+  let timer = null;
+  async function refresh() {
+    if (state.loading || state.hidden) return;
+    state.loading = true;
+    try {
+      const data = await api("/api/overview");
+      applyOverview(data);
+    } catch (e) {
+      if (String(e.message) !== "unauthorized") {
+        $("statusDot").className = "dot bad";
+        setText("statusText", "Offline");
+        $("refreshBtn").classList.remove("spin");
+      }
+    } finally {
+      state.loading = false;
+      clearTimeout(timer);
+      timer = setTimeout(refresh, 5000);
+    }
+  }
 
-        function renderModels(models) {
-            historyList.replaceChildren();
-            const available = Array.isArray(models) ? models : [];
-            document.getElementById("history-empty").hidden = available.length !== 0;
+  function tickUptime() {
+    if (state.uptimeBase == null) return;
+    const seconds = state.uptimeBase + (Date.now() - state.uptimeAt) / 1000;
+    setText("uptime", dur(seconds));
+  }
 
-            for (const model of available) {
-                const item = document.createElement("li");
-                item.className = "history-item";
-                const name = document.createElement("span");
-                name.className = "history-ip";
-                name.textContent = model.id || "unknown";
-                const owner = document.createElement("span");
-                owner.className = "history-place";
-                owner.textContent = model.name || model.owned_by || "";
-                const limit = document.createElement("time");
-                limit.className = "history-time";
-                limit.textContent = model.limit && model.limit.context
-                    ? `${numberFormat.format(model.limit.context)} ctx`
-                    : "";
-                item.append(name, owner, limit);
-                historyList.append(item);
-            }
-        }
+  /* ---------- wiring ---------- */
+  $("refreshBtn").addEventListener("click", () => { $("refreshBtn").classList.add("spin"); refresh(); loadKeys(); });
+  $("rotateBtn").addEventListener("click", rotate);
+  $("keyForm").addEventListener("submit", generateKey);
+  $("copyBase").addEventListener("click", () => copy($("baseUrl").textContent, "Base URL"));
+  $("copyCurl").addEventListener("click", () => copy($("curlSnippet").textContent, "cURL"));
+  $("copyTunnel").addEventListener("click", () => { const u = $("tunnelUrl").textContent; if (u && u !== "not connected") copy(u, "Tunnel URL"); });
+  $("tunnelChip").addEventListener("click", (e) => { if (e.target.id !== "copyTunnel") { const u = $("tunnelUrl").textContent; if (u && u !== "not connected") copy(u, "Tunnel URL"); } });
+  $("copyNewKey").addEventListener("click", () => copy($("newKeyValue").textContent, "API key"));
+  $("closeKeyModal").addEventListener("click", () => $("keyModal").classList.remove("show"));
+  $("keyModal").addEventListener("click", (e) => { if (e.target === $("keyModal")) $("keyModal").classList.remove("show"); });
+  $("gateBtn").addEventListener("click", () => {
+    const key = $("gateKey").value.trim();
+    if (key) location.href = "/dashboard?key=" + encodeURIComponent(key);
+  });
+  $("gateKey").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gateBtn").click(); });
+  document.addEventListener("visibilitychange", () => {
+    state.hidden = document.hidden;
+    if (!state.hidden) refresh();
+  });
+  window.addEventListener("resize", () => { if (state.overview) drawChart(state.overview.series || []); });
+  setInterval(tickUptime, 1000);
 
-        async function refreshDashboard() {
-            const message = document.getElementById("dashboard-message");
-            try {
-                const response = await fetch("/dashboard/stats", { cache: "no-store" });
-                if (!response.ok) throw new Error("Dashboard request failed");
-                const data = await response.json();
-                setText("ip", typeof data.verified_ip === "string" && data.verified_ip ? data.verified_ip : "Unavailable");
-                const location = data.location || {};
-                setText("location", [location.country, location.city].filter(Boolean).join(" · ") || "Location unavailable");
-                setText("requests", formatCount(data.total_requests));
-                setText("rotations", formatCount(data.active_models_count));
-                setText("ratelimits", formatCount(data.rate_limited_requests));
-                renderUsage(data.model_usage);
-                renderModels(data.models);
-
-                message.dataset.state = "";
-                setText(
-                    "dashboard-message",
-                    data.serverless
-                        ? "Running on Vercel serverless. Cloudflare WARP rotation is unavailable; configure PROXY_LIST for proxy-based rotation."
-                        : "Metrics update automatically.",
-                );
-            } catch {
-                setText("ip", "Unavailable");
-                setText("location", "Location unavailable");
-                setText("requests", "—");
-                setText("rotations", "—");
-                setText("ratelimits", "—");
-                message.dataset.state = "error";
-                setText("dashboard-message", "Dashboard data could not be loaded. Retrying shortly.");
-            }
-            window.setTimeout(refreshDashboard, 10000);
-        }
-
-        refreshDashboard();
-    </script>
+  refresh();
+  loadKeys();
+  setInterval(loadKeys, 20000);
+})();
+</script>
 </body>
 </html>

@@ -15,6 +15,8 @@ from core.config import (
     PROXY_RATE_WINDOW,
 )
 from core.db import init_db
+from core.events import RequestLogMiddleware
+from routes.api import router as api_router
 from routes.chat import router as chat_router
 from routes.models import router as models_router
 from routes.system import router as system_router
@@ -66,6 +68,7 @@ if CORS_ALLOW_ORIGINS:
         allow_headers=["Authorization", "Content-Type", "x-api-key", "anthropic-version"],
     )
 
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(
     ApiKeyMiddleware,
     limit=PROXY_RATE_LIMIT,
@@ -76,6 +79,7 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(models_router)
 app.include_router(system_router)
+app.include_router(api_router)
 
 
 @app.get("/", include_in_schema=False)
