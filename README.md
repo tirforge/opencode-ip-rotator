@@ -264,6 +264,9 @@ Requests rotate across the pool in round-robin order.
 | `PROXY_IP_ALLOWLIST` | `""` | Comma-separated client IP allowlist |
 | `PORT` | `8000` | Port for the proxy server |
 | `DEFAULT_MODEL` | `big-pickle` | Fallback model if omitted by the client |
+| `ALL_MODELS` | `0` | Accept any model id and route unknown ones to `ALL_MODELS_TARGET` |
+| `ALL_MODELS_TARGET` | `""` | Free model used for unknown ids when `ALL_MODELS=1` |
+| `MODEL_ALIASES` | `{}` | JSON map of model id → free model, e.g. `{"gpt-4o":"big-pickle"}` |
 | `MODEL_DISCOVERY_INTERVAL` | `300` | Interval in seconds to refresh free models |
 | `STREAM_TIMEOUT` | `120` | Maximum timeout for upstream streaming requests |
 | `PROXY_LIST_FILE` | `data/proxies.txt` | Path to custom proxy pool file |

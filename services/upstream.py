@@ -24,8 +24,11 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from core.config import (
+    ALL_MODELS,
+    ALL_MODELS_TARGET,
     ANTHROPIC_MESSAGES_URL,
     CHAT_COMPLETIONS_URL,
+    MODEL_ALIASES,
     RESPONSES_URL,
     SAFE_UPSTREAM_HEADERS,
     STREAM_TIMEOUT,
@@ -850,6 +853,35 @@ def upstream_status_response(response, model_name: str) -> JSONResponse:
     return JSONResponse(status_code=response.status_code, content=payload)
 
 
+def resolve_model(requested: Any) -> Tuple[str, Optional[str]]:
+    """Map a client-requested model id to a free model, with optional ``#effort``.
+
+    ``big-pickle#high`` -> ("big-pickle", "high")
+    Unknown ids fall back to MODEL_ALIASES, then ALL_MODELS_TARGET, then the
+    default free model. This keeps "any model" clients working instead of 404ing.
+    """
+    effort: Optional[str] = None
+    raw = requested if isinstance(requested, str) else ""
+    if "#" in raw:
+        raw, _, suffix = raw.partition("#")
+        suffix = suffix.strip().lower()
+        if suffix:
+            effort = suffix
+
+    discovered = [m["id"] for m in get_discovered_models()]
+    if raw and raw in discovered:
+        return raw, effort
+    if raw and raw in MODEL_ALIASES:
+        target = MODEL_ALIASES[raw]
+        if not discovered or target in discovered:
+            return target, effort
+    if raw and ALL_MODELS and ALL_MODELS_TARGET:
+        target = ALL_MODELS_TARGET
+        if not discovered or target in discovered:
+            return target, effort
+    return get_default_model(), effort
+
+
 async def forward_upstream_request(
     endpoint: str,
     target_url: str,
@@ -861,13 +893,11 @@ async def forward_upstream_request(
     start_time = time.time()
     metrics["total_requests"] += 1
 
-    raw_model = payload.get("model")
-    discovered = [m["id"] for m in get_discovered_models()]
-    if not raw_model or (discovered and raw_model not in discovered):
-        model_name = get_default_model()
-    else:
-        model_name = raw_model
+    model_name, effort = resolve_model(payload.get("model"))
     payload["model"] = model_name
+    if effort and endpoint in ("chat_completions", "responses") and payload.get("reasoning_effort") is None:
+        # Forward explicit effort through to the upstream model.
+        payload["reasoning_effort"] = effort
 
     if client_wants_stream is None:
         client_wants_stream = bool(payload.get("stream", False))

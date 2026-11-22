@@ -1,5 +1,7 @@
+import json
 import os
 from pathlib import Path
+from typing import Dict
 
 # Upstream target URLs
 OPENCODE_ZEN_TARGET_BASE = os.environ.get(
@@ -39,6 +41,30 @@ DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "big-pickle")
 DEFAULT_MODEL_OVERRIDE = os.environ.get("OPENCODE_DEFAULT_MODEL", "").strip()
 MODEL_DISCOVERY_INTERVAL = int(os.environ.get("MODEL_DISCOVERY_INTERVAL", "300"))
 STREAM_TIMEOUT = int(os.environ.get("STREAM_TIMEOUT", "120"))
+
+# "Any model" mode: accept arbitrary model ids (gpt-*, claude-*, ...) and map
+# unknown ones to a free target instead of failing. Unknown ids already fall
+# back to the default free model; enabling this makes that explicit and lets
+# you pick the target.
+ALL_MODELS = os.environ.get("ALL_MODELS", "0").strip().lower() in {"1", "true", "yes", "on"}
+ALL_MODELS_TARGET = os.environ.get("ALL_MODELS_TARGET", "").strip()
+
+
+def _load_model_aliases() -> Dict[str, str]:
+    raw = os.environ.get("MODEL_ALIASES", "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(k): str(v) for k, v in parsed.items() if str(v).strip()}
+
+
+MODEL_ALIASES = _load_model_aliases()
+
 WARP_ROTATOR_URL = os.environ.get("WARP_ROTATOR_URL", "http://warp-rotator:8001")
 METRICS_DB_PATH = Path(
     os.environ.get("METRICS_DB_PATH", str(DEFAULT_DATA_DIR / "metrics.db"))
